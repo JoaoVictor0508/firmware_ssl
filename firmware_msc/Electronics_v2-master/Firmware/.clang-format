@@ -1,0 +1,7 @@
+BasedOnStyle: Microsoft
+IndentWidth: 4
+Language: Cpp
+DerivePointerAlignment: false
+PointerAlignment: Left
+ColumnLimit: 80
+AccessModifierOffset: -4
