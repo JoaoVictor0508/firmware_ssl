@@ -91,7 +91,7 @@ uint8_t BSP_GYRO_Init(void)
     /* MEMS configuration ----------------------------------------------------*/
     /* Fill the gyroscope structure */
     Gyro_InitStructure.Power_Mode       = L3GD20_MODE_ACTIVE;
-    Gyro_InitStructure.Output_DataRate  = L3GD20_OUTPUT_DATARATE_2;
+    Gyro_InitStructure.Output_DataRate  = L3GD20_OUTPUT_DATARATE_3;
     Gyro_InitStructure.Axes_Enable      = L3GD20_AXES_ENABLE;
     Gyro_InitStructure.Band_Width       = L3GD20_BANDWIDTH_1;
     Gyro_InitStructure.BlockData_Update = L3GD20_BlockDataUpdate_Continous;
@@ -128,7 +128,7 @@ uint8_t BSP_GYRO_Init(void)
 
     /* Configure Mems : data rate, power mode, full scale and axes */
     Gyro_InitStructure.Power_Mode       = I3G4250D_MODE_ACTIVE;
-    Gyro_InitStructure.Output_DataRate  = I3G4250D_OUTPUT_DATARATE_2;
+    Gyro_InitStructure.Output_DataRate  = I3G4250D_OUTPUT_DATARATE_3;
     Gyro_InitStructure.Axes_Enable      = I3G4250D_AXES_ENABLE;
     Gyro_InitStructure.Band_Width       = I3G4250D_BANDWIDTH_1;
     Gyro_InitStructure.BlockData_Update = I3G4250D_BlockDataUpdate_Continous;

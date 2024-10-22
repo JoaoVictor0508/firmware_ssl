@@ -63,8 +63,8 @@ typedef struct _FusionEKF
 	// EKF state vector: [ px py pw vx vy ]
 	// input vector: [ gyr_w acc_x acc_y ]
 	// measurement vector: [ px py pw ]
-	EKF ekf;
-	float ekfData[EKF_DATA_SIZE(5, 3, 3, 5)];
+	KF kf;
+	float ekfData[KF_DATA_SIZE(5, 3, 3, 5)];
 
 	float encGyrPos[3];
 
@@ -84,9 +84,13 @@ typedef struct _FusionEKF
 	FusionEKFTimeSlot lastState;
 	uint32_t timeSlotNow;
 
+	bool first_vision_meas;
+
 //	ModelEnc modelEnc;
 
 	LagElementPT1 lagAccel[2];
+
+	uint32_t lastTime;
 
 } FusionEKF;
 
@@ -94,8 +98,12 @@ extern FusionEKF fusionEKF;
 //extern ConfigFileDesc fusionEKFConfigDesc;
 
 //void FusionEKFInit(FusionEKFConfig* pConfigEkf, ModelEncConfig* pConfigModel);
+void FusionEKFInit();
 void FusionEKFUpdate(const RobotSensors* pSensors, RobotState* pState);
-void FusionEKFSetState(const float* pPos, const float* pVel);
+void FusionEKFSetState(const float* pPos); // falta adicionar a velocidade local dos encoders
 void FusionEKFConfigUpdateCallback(uint16_t cfgId);
+
+float AngleNormalize(float a);
+static float mod(float x, float y);
 
 #endif /* INC_EKF_FUSION_H_ */

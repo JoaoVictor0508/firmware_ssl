@@ -12,41 +12,42 @@
 #include "stm32f4xx_hal.h"
 #include "arm_math.h"
 
-#define EKF_SIZE_A(f)		(f*f)
-#define EKF_SIZE_C(h,f)		(h*f)
-#define EKF_SIZE_EX(f)		(f*f)
-#define EKF_SIZE_EZ(h)		(h*h)
-#define EKF_SIZE_X(f)		(f)
-#define EKF_SIZE_SIGMA(f)	(f*f)
-#define EKF_SIZE_K(f,h)		(f*h)
-#define EKF_SIZE_U(g)		(g)
-#define EKF_SIZE_Z(h)		(h)
-#define EKF_SIZE_MAX(max)	(max*max)
+#define KF_SIZE_A(f)		(f*f)
+#define KF_SIZE_B(f,g)		(f*g)
+#define KF_SIZE_C(h,f)		(h*f)
+#define KF_SIZE_EX(f)		(f*f)
+#define KF_SIZE_EZ(h)		(h*h)
+#define KF_SIZE_X(f)		(f)
+#define KF_SIZE_SIGMA(f)	(f*f)
+#define KF_SIZE_K(f,h)		(f*h)
+#define KF_SIZE_U(g)		(g)
+#define KF_SIZE_Z(h)		(h)
+#define KF_SIZE_MAX(max)	(max*max)
 
-#define EKF_DATA_SIZE(f,g,h,max) \
-	(EKF_SIZE_A(f)+EKF_SIZE_C(h,f)+EKF_SIZE_EX(f) \
-	+EKF_SIZE_EZ(h)+EKF_SIZE_X(f)+EKF_SIZE_SIGMA(f)+EKF_SIZE_K(f,h)+EKF_SIZE_U(g) \
-	+EKF_SIZE_Z(h)+EKF_SIZE_MAX(max)*3)
+// state vector (x) rows: f
+// control vector (u) rows: g
+// sensor vector (z) rows: h
+#define KF_DATA_SIZE(f,g,h,max) \
+	(KF_SIZE_A(f)+KF_SIZE_B(f,g)+KF_SIZE_C(h,f)+KF_SIZE_EX(f) \
+	+KF_SIZE_EZ(h)+KF_SIZE_X(f)+KF_SIZE_SIGMA(f)+KF_SIZE_K(f,h)+KF_SIZE_U(g) \
+	+KF_SIZE_Z(h)+KF_SIZE_MAX(max)*3+KF_SIZE_X(f))
 
-typedef void(*EKFStateFunc)(arm_matrix_instance_f32* pX, const arm_matrix_instance_f32* pU);
-typedef void(*EKFStateJacobianFunc)(const arm_matrix_instance_f32* pX, const arm_matrix_instance_f32* pU, arm_matrix_instance_f32* pF);
-typedef void(*EKFMeasFunc)(const arm_matrix_instance_f32* pX, arm_matrix_instance_f32* pY);
-typedef void(*EKFMeasJacobianFunc)(const arm_matrix_instance_f32* pX, arm_matrix_instance_f32* pH);
+typedef void(*KFStateFunc)(arm_matrix_instance_f32* pX, const arm_matrix_instance_f32* pU);
+//typedef void(*EKFStateJacobianFunc)(const arm_matrix_instance_f32* pX, const arm_matrix_instance_f32* pU, arm_matrix_instance_f32* pF);
+//typedef void(*EKFMeasFunc)(const arm_matrix_instance_f32* pX, arm_matrix_instance_f32* pY);
+//typedef void(*EKFMeasJacobianFunc)(const arm_matrix_instance_f32* pX, arm_matrix_instance_f32* pH);
 
-typedef struct _EKF
+typedef struct _KF
 {
 	uint16_t f;
 	uint16_t g;
 	uint16_t h;
 
-	// state and measurement functions
-	EKFStateFunc pState;
-	EKFStateJacobianFunc pStateJacobian;
-	EKFMeasFunc pMeas;
-	EKFMeasJacobianFunc pMeasJacobian;
+	KFStateFunc pState;
 
 	// user matrices
 	arm_matrix_instance_f32 A;		// (f x f)
+	arm_matrix_instance_f32 B;		// (f x g)
 	arm_matrix_instance_f32 C;		// (h x f)
 	arm_matrix_instance_f32 Ex;		// (f x f)
 	arm_matrix_instance_f32 Ez;		// (h x h)
@@ -66,10 +67,18 @@ typedef struct _EKF
 	arm_matrix_instance_f32 tmp1;
 	arm_matrix_instance_f32 tmp2;
 	arm_matrix_instance_f32 tmp3;
-} EKF;
 
-void EKFInit(EKF* pKF, uint16_t numStates, uint16_t numCtrl, uint16_t numSensors, float* pData);
-void EKFPredict(EKF* pKF);
-void EKFUpdate(EKF* pKF);
+	// angle selector
+	uint32_t* pNormalizeAngle;
+} KF;
+
+void KFInit(KF* pKF, uint16_t f, uint16_t g, uint16_t h, float* pData);
+void KFSetOrientationComponent(KF* pKF, uint32_t stateIndex);
+void KFPredict(KF* pKF);
+void KFUpdate(KF* pKF);
+arm_status arm_mat_identity_f32(arm_matrix_instance_f32* pMat);
+void arm_mat_zero_f32(arm_matrix_instance_f32* pMat);
+arm_status arm_mat_inv_2x2_f32(const arm_matrix_instance_f32* A, arm_matrix_instance_f32* B);
+arm_status arm_mat_inv_3x3_f32(const arm_matrix_instance_f32* A, arm_matrix_instance_f32* B);
 
 #endif /* INC_EKF_H_ */

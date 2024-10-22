@@ -11,52 +11,188 @@
 #include "ekf.h"
 #include "calibrate_imu.h"
 
-
-//void EKFStateFunc(arm_matrix_instance_f32* pX, arm_matrix_instance_f32* pU)
-//{
-//	const float dt = 0.001f;
-//
-//	float gyr_w = MAT_ELEMENT(*pU, 0, 0);
-//	float acc_x = MAT_ELEMENT(*pU, 1, 0);
-//	float acc_y = MAT_ELEMENT(*pU, 2, 0);
-//
-//	float p_x = MAT_ELEMENT(*pX, 0, 0);
-//	float p_y = MAT_ELEMENT(*pX, 1, 0);
-//	float p_w = MAT_ELEMENT(*pX, 2, 0);
-//	float v_x = MAT_ELEMENT(*pX, 3, 0);
-//	float v_y = MAT_ELEMENT(*pX, 4, 0);
-//
-//	float v_w = gyr_w;
-//	float a = -M_PI_2 + p_w + dt*v_w*0.5f;
-//	float a_x = acc_x;
-//	float a_y = acc_y;
-////	float a_x = acc_x + v_y*v_w; // Tigers method with centrifugal force
-////	float a_y = acc_y - v_x*v_w; // Tigers method with centrifugal force
-//
-//	float px1 = p_x + (arm_cos_f32(a)*v_x-arm_sin_f32(a)*v_y)*dt + (arm_cos_f32(a)*a_x-arm_sin_f32(a)*a_y)*0.5f*dt*dt;
-//	float py1 = p_y + (arm_sin_f32(a)*v_x+arm_cos_f32(a)*v_y)*dt + (arm_sin_f32(a)*a_x+arm_cos_f32(a)*a_y)*0.5f*dt*dt;
-//	float vx1 = v_x + a_x*dt;
-//	float vy1 = v_y + a_y*dt;
-//	float pw1 = p_w + v_w*dt;
-//
-////	pX->pData[0][0] = px1;
-////	*pX->pData[1][0] = py1;
-////	*pX->pData[2][0] = pw1;
-////	*pX->pData[3][0] = vx1;
-////	*pX->pData[4][0] = vy1;
-//	MAT_ELEMENT(*pX, 0, 0) = px1; //MAT_ELEMENT ONLY WORKING BECAUSE OF CALIBRATE_IMU INCLUDE (?)
-//	MAT_ELEMENT(*pX, 1, 0) = py1;
-//	MAT_ELEMENT(*pX, 2, 0) = pw1;
-//	MAT_ELEMENT(*pX, 3, 0) = vx1;
-//	MAT_ELEMENT(*pX, 4, 0) = vy1;
-//}
-
-void EKFPredict(EKF* pKF)
+void arm_mat_copy_f32(const arm_matrix_instance_f32* pSrc, arm_matrix_instance_f32* pDst)
 {
-	// >>> State prediction
-	// A = jacobian(x+1,x)
-	(*pKF->pStateJacobian)(&pKF->x, &pKF->u, &pKF->A);
-	(*pKF->pState)(&pKF->x, &pKF->u);
+	pDst->numCols = pSrc->numCols;
+	pDst->numRows = pSrc->numRows;
+
+	memcpy(pDst->pData, pSrc->pData, sizeof(float) * pSrc->numCols * pSrc->numRows);
+}
+
+arm_status arm_mat_identity_f32(arm_matrix_instance_f32* pMat)
+{
+#ifdef ARM_MATH_MATRIX_CHECK
+	if(pMat->numCols != pMat->numRows)
+	return ARM_MAT_SIZE_MISMATCH;
+#endif /*      #ifdef ARM_MATH_MATRIX_CHECK    */
+
+	arm_mat_zero_f32(pMat);
+
+	for(uint16_t i = 0; i < pMat->numCols; i++)
+		pMat->pData[i * pMat->numCols + i] = 1.0f;
+
+	return ARM_MATH_SUCCESS;
+}
+
+void arm_mat_zero_f32(arm_matrix_instance_f32* pMat)
+{
+	memset(pMat->pData, 0, sizeof(float) * pMat->numCols * pMat->numRows);
+}
+
+#define DET2(a, b, c, d) (a*d-b*c)
+
+arm_status arm_mat_inv_2x2_f32(const arm_matrix_instance_f32* A, arm_matrix_instance_f32* B)
+{
+#ifdef ARM_MATH_MATRIX_CHECK
+	if(A->numCols != 2 || A->numRows != 2)
+		return ARM_MAT_SIZE_MISMATCH;
+#endif
+
+	float det = DET2(A->pData[0], A->pData[1], A->pData[2], A->pData[3]);
+	if(det == 0.0f)
+		return ARM_MATH_SINGULAR;
+
+	float f = 1.0f/det;
+
+	B->pData[0] =  f*A->pData[3];
+	B->pData[1] = -f*A->pData[1];
+	B->pData[2] = -f*A->pData[2];
+	B->pData[3] =  f*A->pData[0];
+
+	return ARM_MATH_SUCCESS;
+}
+
+arm_status arm_mat_inv_3x3_f32(const arm_matrix_instance_f32* A, arm_matrix_instance_f32* B)
+{
+#ifdef ARM_MATH_MATRIX_CHECK
+	if(A->numCols != 3 || A->numRows != 3)
+		return ARM_MAT_SIZE_MISMATCH;
+#endif
+
+	const float* a = A->pData;
+	const float* b = A->pData+3;
+	const float* c = A->pData+6;
+
+	float det = a[0]*b[1]*c[2] - a[0]*b[2]*c[1] - a[1]*b[0]*c[2] + a[1]*b[2]*c[0] + a[2]*b[0]*c[1] - a[2]*b[1]*c[0];
+	if(det == 0.0f)
+		return ARM_MATH_SINGULAR;
+
+	float f = 1.0f/det;
+
+	a = A->pData;
+
+	B->pData[0] = f*DET2(a[4], a[5], a[7], a[8]);
+	B->pData[1] = f*DET2(a[2], a[1], a[8], a[7]);
+	B->pData[2] = f*DET2(a[1], a[2], a[4], a[5]);
+	B->pData[3] = f*DET2(a[5], a[3], a[8], a[6]);
+	B->pData[4] = f*DET2(a[0], a[2], a[6], a[8]);
+	B->pData[5] = f*DET2(a[2], a[1], a[5], a[3]);
+	B->pData[6] = f*DET2(a[3], a[4], a[6], a[7]);
+	B->pData[7] = f*DET2(a[1], a[0], a[7], a[6]);
+	B->pData[8] = f*DET2(a[0], a[1], a[3], a[4]);
+
+	return ARM_MATH_SUCCESS;
+}
+
+void KFInit(KF* pKF, uint16_t f, uint16_t g, uint16_t h, float* pData)
+{
+	uint16_t max = f;
+	if(g > max)
+		max = g;
+	if(h > max)
+		max = h;
+
+	memset(pData, 0, KF_DATA_SIZE(f, g, h, max)*sizeof(float));
+
+	pKF->f = f;
+	pKF->g = g;
+	pKF->h = h;
+
+	pKF->A.numRows = f;
+	pKF->A.numCols = f;
+	pKF->A.pData = pData;
+	pData += KF_SIZE_A(f);
+
+	pKF->B.numRows = f;
+	pKF->B.numCols = g;
+	pKF->B.pData = pData;
+	pData += KF_SIZE_B(f, g);
+
+	pKF->C.numRows = h;
+	pKF->C.numCols = f;
+	pKF->C.pData = pData;
+	pData += KF_SIZE_C(h, f);
+
+	pKF->Ex.numRows = f;
+	pKF->Ex.numCols = f;
+	pKF->Ex.pData = pData;
+	pData += KF_SIZE_EX(f);
+
+	pKF->Ez.numRows = h;
+	pKF->Ez.numCols = h;
+	pKF->Ez.pData = pData;
+	pData += KF_SIZE_EZ(h);
+
+	pKF->x.numRows = f;
+	pKF->x.numCols = 1;
+	pKF->x.pData = pData;
+	pData += KF_SIZE_X(f);
+
+	pKF->Sigma.numRows = f;
+	pKF->Sigma.numCols = f;
+	pKF->Sigma.pData = pData;
+	pData += KF_SIZE_SIGMA(f);
+
+	pKF->K.numRows = f;
+	pKF->K.numCols = h;
+	pKF->K.pData = pData;
+	pData += KF_SIZE_K(f,h);
+
+	pKF->u.numRows = g;
+	pKF->u.numCols = 1;
+	pKF->u.pData = pData;
+	pData += KF_SIZE_U(g);
+
+	pKF->z.numRows = h;
+	pKF->z.numCols = 1;
+	pKF->z.pData = pData;
+	pData += KF_SIZE_Z(h);
+
+	pKF->tmp1.numRows = max;
+	pKF->tmp1.numCols = max;
+	pKF->tmp1.pData = pData;
+	pData += KF_SIZE_MAX(max);
+
+	pKF->tmp2.numRows = max;
+	pKF->tmp2.numCols = max;
+	pKF->tmp2.pData = pData;
+	pData += KF_SIZE_MAX(max);
+
+	pKF->tmp3.numRows = max;
+	pKF->tmp3.numCols = max;
+	pKF->tmp3.pData = pData;
+	pData += KF_SIZE_MAX(max);
+
+	pKF->pNormalizeAngle = (uint32_t*)pData;
+	pData += KF_SIZE_X(f);
+
+	arm_mat_identity_f32(&pKF->Sigma);
+}
+
+void KFPredict(KF* pKF)
+{
+	// >>> x = A*x + B*u
+	// tmp1 = A*x (f x 1)
+	pKF->tmp1.numRows = pKF->f;
+	pKF->tmp1.numCols = 1;
+	arm_mat_mult_f32(&pKF->A, &pKF->x, &pKF->tmp1);
+	// tmp2 = B*u (f x 1)
+	pKF->tmp2.numRows = pKF->f;
+	pKF->tmp2.numCols = 1;
+	arm_mat_mult_f32(&pKF->B, &pKF->u, &pKF->tmp2);
+	// x = tmp1 + tmp2 (f x 1)
+	arm_mat_add_f32(&pKF->tmp1, &pKF->tmp2, &pKF->x);
+//	(*pKF->pState)(&pKF->x, &pKF->u);
 
 	// >>> Sigma = A*Sigma*A^T + Ex
 	// tmp1 = A*Sigma (f x f)
@@ -73,11 +209,8 @@ void EKFPredict(EKF* pKF)
 	arm_mat_add_f32(&pKF->Sigma, &pKF->Ex, &pKF->Sigma);
 }
 
-void EKFUpdate(EKF* pKF)
+void KFUpdate(KF* pKF)
 {
-	// >>> H = jacobian(z,x)
-	(*pKF->pMeasJacobian)(&pKF->x, &pKF->C);
-
 	// >>> K = Sigma*C^T*(C*Sigma*C^T+Ez)^-1
 	// tmp1 = C^T (f x h)
 	pKF->tmp1.numRows = pKF->f;
@@ -120,20 +253,26 @@ void EKFUpdate(EKF* pKF)
 			invStat = arm_mat_inverse_f32(&pKF->tmp3, &pKF->tmp1);
 			break;
 	}
-	if(invStat != ARM_MATH_SUCCESS)
+//	if(invStat != ARM_MATH_SUCCESS)
 //		LogErrorC("Matrix inverse error", invStat);
 	// K = tmp2*tmp1 (f x h)
 	arm_mat_mult_f32(&pKF->tmp2, &pKF->tmp1, &pKF->K);
 
-	// >>> x = x + K*(z - pMeas(x))
-	// tmp1 = pMeas(x) (h x 1)
+	// >>> x = x + K*(z - C*x)
+	// tmp1 = C*x (h x 1)
 	pKF->tmp1.numRows = pKF->h;
 	pKF->tmp1.numCols = 1;
-	(*pKF->pMeas)(&pKF->x, &pKF->tmp1);
+	arm_mat_mult_f32(&pKF->C, &pKF->x, &pKF->tmp1);
 	// tmp2 = z - tmp1 (h x 1)
 	pKF->tmp2.numRows = pKF->h;
 	pKF->tmp2.numCols = 1;
 	arm_mat_sub_f32(&pKF->z, &pKF->tmp1, &pKF->tmp2);
+	// normalize angle of selected variables
+//	for(uint16_t i = 0; i < pKF->f; i++)
+//	{
+//		if(pKF->pNormalizeAngle[i])
+//			AngleNormalizePtr(&pKF->tmp2.pData[i]);
+//	}
 	// tmp3 = K*tmp2 (f x 1)
 	pKF->tmp3.numRows = pKF->f;
 	pKF->tmp3.numCols = 1;

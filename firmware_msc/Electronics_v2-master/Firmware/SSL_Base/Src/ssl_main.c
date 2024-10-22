@@ -19,6 +19,7 @@
 #include "ekf_fusion.h"
 #include "l3gd20.h"
 #include "lsm303dlhc.h"
+#include <stdio.h>
 
 #include "encoder.h"
 
@@ -56,6 +57,26 @@ volatile uint32_t loopCount = 0, loopTime = 0;
 
 extern __IO uint16_t uhADCxConvertedValue[2];
 
+RadioRXPacket_t receivedPacket;
+SPIData_t radioData;
+
+static FusionEKFConfig configFusionKF = {
+	.posNoiseXY = 0.001f,
+	.posNoiseW = 0.001f,
+	.velNoiseXY = 0.005f,
+	.visNoiseXY = 0.05f,
+	.visNoiseW = 0.1f,
+	.outlierMaxVelXY = 3.0f,
+	.outlierMaxVelW = 3.0f,
+	.trackingCoeff = 1.0f,
+	.visCaptureDelay = 20,
+	.fusionHorizon = 35,
+	.visionTimeoutMs = 1000,
+	.emaAccelT = 0.005f,
+};
+
+extern void initialise_monitor_handles(void);
+
 int main(void)
 {
     setup();
@@ -92,6 +113,7 @@ int main(void)
         if (robotData.mVbattery > MIN_BATTERY)
         {
             processRadio();
+            estimateState();
 
             runMotors();
             setKickCommand();
@@ -128,13 +150,17 @@ void setup()
     HAL_GPIO_WritePin(RIGHT_KICK_GPIO_Port, RIGHT_KICK_Pin, GPIO_PIN_RESET);
     HAL_GPIO_WritePin(LEFT_KICK_GPIO_Port, LEFT_KICK_Pin, GPIO_PIN_RESET);
 
+//    initialise_monitor_handles();
+
     HAL_Delay(500);
 
     radioData.robotID = getRobotID();
     getRobotChannel(&radioData.rfRXChannel, &radioData.rfTXChannel);
 
+    FusionEKFInit(&configFusionKF);
     BSP_ACCELERO_Init();
     BSP_GYRO_Init();
+
     nRF24_RadioConfig();
     showRobotID();
     initMotors();
@@ -295,9 +321,19 @@ void processRadio()
             robotData.kickType = receivedPacket.kickType;
             robotData.kickStrength = 0;
         }
-        robotData.pose.x = receivedPacket.x.value;
-        robotData.pose.y = receivedPacket.y.value;
-        robotData.pose.theta = receivedPacket.theta.value;
+
+        if (robotData.pose.x != receivedPacket.x.value || robotData.pose.y != receivedPacket.y.value || robotData.pose.theta != receivedPacket.theta.value)
+        {
+        	robotData.pose.x = receivedPacket.x.value;
+			robotData.pose.y = receivedPacket.y.value;
+			robotData.pose.theta = receivedPacket.theta.value;
+
+			robotData.sensors.vision.updated = 1;
+        }
+        else
+        {
+        	robotData.sensors.vision.updated = 0;
+        }
     }
     else if (robotData.cycles - robotData.radioCycles >= 500)
     {
@@ -524,7 +560,7 @@ void estimateState()
 	int16_t accel_xyz[3] = {0};
 
     BSP_ACCELERO_GetXYZ(accel_xyz);
-	robotData.sensors.acc.linAcc[0] = accel_xyz[1] * 0.061f / 0.10197162129779f / 1000.f + 0.0498709083 - 0.0872829258;
+	robotData.sensors.acc.linAcc[0] = accel_xyz[0] * 0.061f / 0.10197162129779f / 1000.f + 0.0498709083 - 0.0872829258;
 	robotData.sensors.acc.linAcc[1] = accel_xyz[1] * 0.061f / 0.10197162129779f / 1000.f + 0.266912103;
 	robotData.sensors.acc.linAcc[2] = accel_xyz[2] * 0.061f / 0.10197162129779f / 1000.f + 0.452083707;
 
@@ -532,6 +568,10 @@ void estimateState()
 	robotData.sensors.gyr.rotVel[0] = (gyro_xyz[0] / 1000) - 0.256533086;// - 0.225843;
 	robotData.sensors.gyr.rotVel[1] = (gyro_xyz[1] / 1000) + 0.116062336;// + 0.089630;
 	robotData.sensors.gyr.rotVel[2] = (gyro_xyz[2] / 1000) + 0.503718257;// + 0.631300;
+
+	robotData.sensors.vision.pos[0] = robotData.pose.x;
+	robotData.sensors.vision.pos[1] = robotData.pose.y;
+	robotData.sensors.vision.pos[2] = robotData.pose.theta;
 
 	FusionEKFUpdate(&robotData.sensors, &robotData.state);
 }

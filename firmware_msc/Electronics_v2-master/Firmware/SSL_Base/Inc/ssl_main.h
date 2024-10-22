@@ -47,15 +47,22 @@ typedef struct _RobotSensors
 	{
 		uint32_t updated;
 		uint32_t time;
-		int16_t linAcc[3];	// X, Y, Z [m^2/s]
+		float linAcc[3];	// X, Y, Z [m^2/s]
 	} acc;
+
+	struct
+	{
+		uint32_t updated;
+		uint32_t time;
+		float encVel[3];
+	} encoder;
 
 	struct PACKED
 	{
 		uint32_t updated;
 		uint32_t time;		// local arrival time (systime)
 		uint32_t delay;		// t [us]
-		float pos[3];		// X, Y, Z [m]
+		float pos[3];		// X, Y, theta [m]
 		uint32_t camId;
 		uint32_t noVision;
 	} vision;
@@ -66,6 +73,8 @@ typedef struct _RobotState
 	float pos[3];	// [m]
 	float vel[3];	// [m/s]
 	float acc[3];
+	float Sigma[5][5];
+	float kalman_gain[5][3];
 	float magZ;     // [rad]
 
 	uint32_t posUpdated;

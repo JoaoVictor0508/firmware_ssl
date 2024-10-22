@@ -290,7 +290,7 @@ typedef struct
     uint8_t packetFrequency;
     uint32_t lastPacketTimestamp;
 } SPIData_t;
-static SPIData_t radioData;
+extern SPIData_t radioData;
 
 typedef enum
 {
@@ -334,7 +334,7 @@ typedef struct
         int16_t value;
     } x, y, theta;
 } RadioRXPacket_t;
-static RadioRXPacket_t receivedPacket;
+extern RadioRXPacket_t receivedPacket;
 
 extern SPI_HandleTypeDef* radioSPI;
 

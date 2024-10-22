@@ -12,7 +12,7 @@
 #include "l3gd20.h"
 #include "lsm303dlhc.h"
 #include <stdio.h>
-extern void initialise_monitor_handles(void);
+//extern void initialise_monitor_handles(void);
 
 #define SVD_MAX_SIZE 10
 
@@ -394,7 +394,7 @@ void CalibIMU()
 	float dt = 0.0f;
 
 	c=p;
-	initialise_monitor_handles();
+//	initialise_monitor_handles();
 	fp= fopen("C:\\Users\\joaov\\accel_wrong.txt", "w");
 
 	printf("Getting wrong data from accelerometer");

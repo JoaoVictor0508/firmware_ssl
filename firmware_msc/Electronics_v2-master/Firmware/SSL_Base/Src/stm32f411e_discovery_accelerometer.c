@@ -133,7 +133,7 @@ uint8_t BSP_ACCELERO_Init(void)
     /* MEMS configuration ----------------------------------------------------*/
     /* Fill the accelerometer structure */
     Accelero_InitStructure.Power_Mode         = LSM303AGR_NORMAL_MODE;
-    Accelero_InitStructure.AccOutput_DataRate = LSM303AGR_ODR_200_HZ;
+    Accelero_InitStructure.AccOutput_DataRate = LSM303AGR_ODR_400_HZ;
     Accelero_InitStructure.Axes_Enable        = LSM303AGR_AXES_ENABLE;
     Accelero_InitStructure.AccFull_Scale      = LSM303AGR_FULLSCALE_2G;
     Accelero_InitStructure.BlockData_Update   = LSM303AGR_BlockUpdate_Single;

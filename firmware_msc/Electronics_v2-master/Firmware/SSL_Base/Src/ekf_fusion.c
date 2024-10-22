@@ -7,13 +7,14 @@
 
 #include "ekf_fusion.h"
 
-static void initEKF();
+static void initEKF(FusionEKF* fusion_kf);
 static void ekfStateFunc(arm_matrix_instance_f32* pX, const arm_matrix_instance_f32* pU);
 static void ekfStateJacobianFunc(const arm_matrix_instance_f32* pX, const arm_matrix_instance_f32* pU, arm_matrix_instance_f32* pF);
 static void ekfMeasFunc(const arm_matrix_instance_f32* pX, arm_matrix_instance_f32* pY);
 static void ekfMeasJacobianFunc(const arm_matrix_instance_f32* pX, arm_matrix_instance_f32* pH);
 
-static uint8_t isVisionSampleValid(const float* pVisPos, const float* pInsPos, int32_t tDelayUs);
+static uint8_t isVisionSampleValid(const float* pVisPos, const float* pInsPos);
+static void loadNoiseCovariancesFromConfig();
 
 FusionEKF fusionEKF;
 
@@ -21,82 +22,177 @@ void FusionEKFUpdate(const RobotSensors* pSensors, RobotState* pState){
 
 	StateEKF stateNow;
 
+	uint32_t new_sample_time = HAL_GetTick();
+
+	float dt = (new_sample_time-fusionEKF.lastTime)*1e-3f;
+
 	stateNow.accGyr[0] = pSensors->acc.linAcc[0];
 	stateNow.accGyr[1] = pSensors->acc.linAcc[1];
 	stateNow.accGyr[2] = pSensors->gyr.rotVel[2];
 
-	if(pSensors->vision.updated && isVisionSampleValid(pSensors->vision.pos, fusionEKF.vision.lastPos, pSensors->vision.delay)) // see if vision is available AND if the vision sample is valid
+	if(fusionEKF.first_vision_meas == true)
 	{
-		memcpy(fusionEKF.ekf.z.pData, pSensors->vision.pos, sizeof(float)*3); // transfer the data from the vision to the Z matrix
-		EKFUpdate(&fusionEKF.ekf); // updates state
+		FusionEKFSetState(pSensors->vision.pos);
+		memcpy(fusionEKF.vision.lastPos, pSensors->vision.pos, sizeof(float)*3);
+		fusionEKF.first_vision_meas = false;
+	}
+
+	if(pSensors->vision.updated && isVisionSampleValid(pSensors->vision.pos, fusionEKF.vision.lastPos)) // see if vision is available AND if the vision sample is valid
+	{
+		memcpy(fusionEKF.kf.z.pData, pSensors->vision.pos, sizeof(float)*3); // transfer the data from the vision to the Z matrix
+		KFUpdate(&fusionEKF.kf); // update state
+
+		if(!fusionEKF.vision.online)
+		{
+			fusionEKF.vision.online = 1;
+		}
 	}
 	else
 	{
-		memcpy(fusionEKF.ekf.u.pData, stateNow.accGyr, sizeof(float)*3); // transfer the data from the control to the control matrix
-		EKFPredict(&fusionEKF.ekf); // predict state
+		memcpy(fusionEKF.kf.u.pData, stateNow.accGyr, sizeof(float)*3); // transfer the data from the control to the control matrix
+
+		MAT_ELEMENT(fusionEKF.kf.A, 0, 3) = dt;
+		MAT_ELEMENT(fusionEKF.kf.A, 1, 4) = dt;
+
+		MAT_ELEMENT(fusionEKF.kf.B, 0, 0) = dt*dt;
+		MAT_ELEMENT(fusionEKF.kf.B, 1, 1) = dt*dt;
+		MAT_ELEMENT(fusionEKF.kf.B, 2, 2) = dt;
+		MAT_ELEMENT(fusionEKF.kf.B, 3, 0) = dt;
+		MAT_ELEMENT(fusionEKF.kf.B, 4, 1) = dt;
+
+		KFPredict(&fusionEKF.kf); // predict state
+
+		if(fusionEKF.vision.online)
+		{
+			fusionEKF.vision.online = 0;
+		}
 	}
 
-	pState->pos[0] = fusionEKF.ekf.x.pData[0]; // position X
-	pState->pos[1] = fusionEKF.ekf.x.pData[1]; // position Y
-	pState->pos[2] = fusionEKF.ekf.x.pData[2]; // angular position
+	fusionEKF.lastTime = new_sample_time;
 
-	pState->vel[0] = fusionEKF.ekf.x.pData[3]; // linear velocity X
-	pState->vel[1] = fusionEKF.ekf.x.pData[4]; // linear velocity Y
+	pState->pos[0] = fusionEKF.kf.x.pData[0]; // position X
+	pState->pos[1] = fusionEKF.kf.x.pData[1]; // position Y
+	pState->pos[2] = fusionEKF.kf.x.pData[2]; // angular position
+
+	pState->vel[0] = fusionEKF.kf.x.pData[3]; // linear velocity X
+	pState->vel[1] = fusionEKF.kf.x.pData[4]; // linear velocity Y
 	pState->vel[2] = stateNow.accGyr[2]; // angular velocity
+
+	for(int i = 0; i < fusionEKF.kf.Sigma.numRows; i++)
+	{
+		for(int j = 0; j < fusionEKF.kf.Sigma.numCols; j++)
+		{
+			pState->Sigma[i][j] = MAT_ELEMENT(fusionEKF.kf.Sigma, i, j);
+		}
+	}
+
+	for(int k = 0; k < fusionEKF.kf.K.numRows; k++)
+	{
+		for(int a = 0; a < fusionEKF.kf.K.numCols; a++)
+		{
+			pState->kalman_gain[k][a] = MAT_ELEMENT(fusionEKF.kf.K, k, a);
+		}
+	}
+
 }
 
-static uint8_t isVisionSampleValid(const float* pVisPos, const float* pInsPos, int32_t tDelayUs)
+static uint8_t isVisionSampleValid(const float* pVisPos, const float* pLastPos)
 {
 	// validate sample, outlier rejection
-	uint32_t measTime = SysTimeUSec()-tDelayUs;
-	float visionDt = (measTime-fusionEKF.vision.timeLastValidSample)*1e-6f;
+//	uint32_t measTime = HAL_GetTick()-tDelayUs;
+	uint32_t new_sample_time = HAL_GetTick();
+	float visionDt = (new_sample_time-fusionEKF.vision.timeLastValidSample)*1e-3f;
 
-	float searchRadiusXY = 100.0f*fusionEKF.pConfig->visNoiseXY + fusionEKF.pConfig->outlierMaxVelXY*visionDt;
-	float searchRadiusW = 2.0f*fusionEKF.pConfig->visNoiseW + fusionEKF.pConfig->outlierMaxVelW*visionDt;
+//	float searchRadiusXY = 100.0f*fusionEKF.pConfig->visNoiseXY + fusionEKF.pConfig->outlierMaxVelXY*visionDt;
+//	float searchRadiusW = 2.0f*fusionEKF.pConfig->visNoiseW + fusionEKF.pConfig->outlierMaxVelW*visionDt;
 
-	float diffX = pVisPos[0] - pInsPos[0];
-	float diffY = pVisPos[1] - pInsPos[1];
+	float searchRadiusXY = fusionEKF.pConfig->outlierMaxVelXY*visionDt;
+	float searchRadiusW = fusionEKF.pConfig->outlierMaxVelW*visionDt;
+
+	float diffX = (pVisPos[0] - pLastPos[0])*1e-3;
+	float diffY = (pVisPos[1] - pLastPos[1])*1e-3;
 	float diffXY = sqrtf(diffX*diffX+diffY*diffY);
-	float diffW = AngleNormalize(pVisPos[2] - AngleNormalize(pInsPos[2]));
+//	float diffW = AngleNormalize(pVisPos[2] - AngleNormalize(pLastPos[2]));
 
-	if(diffXY > searchRadiusXY || fabsf(diffW) > searchRadiusW)
+	if(diffXY > searchRadiusXY)
 	{
 		// this is an invalid sample, vel is impossible
 		return 0;
 	}
 
-	fusionEKF.vision.timeLastValidSample = measTime;
+	memcpy(pLastPos, pVisPos, sizeof(float)*3);
+
+	fusionEKF.vision.timeLastValidSample = new_sample_time;
 
 	return 1;
 }
 
-//void FusionEKFInit(FusionEKFConfig* pConfigEkf, ModelEncConfig* pConfigModel)
-//{
-//	fusionEKF.pConfig = pConfigEkf;
-//	ModelEncInit(&fusionEKF.modelEnc, pConfigModel, CTRL_DELTA_T);
-//	initEKF();
-//
+void FusionEKFInit(FusionEKFConfig* pConfigKF)
+{
+	fusionEKF.pConfig = pConfigKF;
+	initEKF(&fusionEKF);
+
 //	LagElementPT1Init(&fusionEKF.lagAccel[0], 1.0f, fusionEKF.pConfig->emaAccelT, CTRL_DELTA_T);
 //	LagElementPT1Init(&fusionEKF.lagAccel[1], 1.0f, fusionEKF.pConfig->emaAccelT, CTRL_DELTA_T);
-//
+
 //	float ballInitPos[2] = { 0 };
 //	float ballMeasEror[] = { fusionEKF.pConfig->irMeasNoiseX, fusionEKF.pConfig->irMeasNoiseY };
 //	TrackingFilter2DInit(&fusionEKF.ballFilter, CTRL_DELTA_T, ballInitPos, 1e-3f, fusionEKF.pConfig->irPosNoise, ballMeasEror);
-//}
+}
 
-static void initEKF()
+static void loadNoiseCovariancesFromConfig()
 {
-	EKFInit(&fusionEKF.ekf, 5, 3, 3, fusionEKF.ekfData);
-	arm_mat_scale_f32(&fusionEKF.ekf.Sigma, 0.001f, &fusionEKF.ekf.Sigma);
-	fusionEKF.ekf.pState = &ekfStateFunc;
-	fusionEKF.ekf.pStateJacobian = &ekfStateJacobianFunc;
-	fusionEKF.ekf.pMeas = &ekfMeasFunc;
-	fusionEKF.ekf.pMeasJacobian = &ekfMeasJacobianFunc;
+	if(fusionEKF.kf.Ex.pData) // pData is null when fusionEKF has not been initialized yet
+	{
+		MAT_ELEMENT(fusionEKF.kf.Ex, 0, 0) = fusionEKF.pConfig->posNoiseXY*fusionEKF.pConfig->posNoiseXY;
+		MAT_ELEMENT(fusionEKF.kf.Ex, 1, 1) = fusionEKF.pConfig->posNoiseXY*fusionEKF.pConfig->posNoiseXY;
+		MAT_ELEMENT(fusionEKF.kf.Ex, 2, 2) = fusionEKF.pConfig->posNoiseW *fusionEKF.pConfig->posNoiseW;
+		MAT_ELEMENT(fusionEKF.kf.Ex, 3, 3) = fusionEKF.pConfig->velNoiseXY*fusionEKF.pConfig->velNoiseXY;
+		MAT_ELEMENT(fusionEKF.kf.Ex, 4, 4) = fusionEKF.pConfig->velNoiseXY*fusionEKF.pConfig->velNoiseXY;
 
-	arm_mat_identity_f32(&fusionEKF.ekf.Ex);
-	arm_mat_identity_f32(&fusionEKF.ekf.Ez);
+		MAT_ELEMENT(fusionEKF.kf.Ez, 0, 0) = fusionEKF.pConfig->visNoiseXY*fusionEKF.pConfig->visNoiseXY;
+		MAT_ELEMENT(fusionEKF.kf.Ez, 1, 1) = fusionEKF.pConfig->visNoiseXY*fusionEKF.pConfig->visNoiseXY;
+		MAT_ELEMENT(fusionEKF.kf.Ez, 2, 2) = fusionEKF.pConfig->visNoiseW *fusionEKF.pConfig->visNoiseW;
+	}
+}
+
+static void initEKF(FusionEKF* fusion_kf)
+{
+	KFInit(&fusionEKF.kf, 5, 3, 3, fusionEKF.ekfData);
+	arm_mat_scale_f32(&fusionEKF.kf.Sigma, 0.001f, &fusionEKF.kf.Sigma);
+	fusionEKF.kf.pState = &ekfStateFunc;
+//	fusionEKF.ekf.pStateJacobian = &ekfStateJacobianFunc;
+//	fusionEKF.ekf.pMeas = &ekfMeasFunc;
+//	fusionEKF.ekf.pMeasJacobian = &ekfMeasJacobianFunc;
+
+	fusionEKF.first_vision_meas = true;
+
+	MAT_ELEMENT(fusion_kf->kf.C, 0, 0) = 1.0f;
+	MAT_ELEMENT(fusion_kf->kf.C, 1, 1) = 1.0f;
+	MAT_ELEMENT(fusion_kf->kf.C, 2, 2) = 1.0f;
+
+	arm_mat_identity_f32(&fusionEKF.kf.A);
+
+	arm_mat_identity_f32(&fusionEKF.kf.Ex);
+	arm_mat_identity_f32(&fusionEKF.kf.Ez);
 
 	loadNoiseCovariancesFromConfig();
+}
+
+void FusionEKFSetState(const float* pPos)
+{
+	for (uint32_t i = 0; i < 3; i++)
+	{
+		memcpy(fusionEKF.kf.x.pData+i, pPos+i, sizeof(float));
+	}
+//	memcpy(fusionEKF.encGyrPos, pPos, sizeof(float)*3);
+
+//	for(uint32_t i = 0; i < FUSION_EKF_MAX_DELAY; i++)
+//	{
+//		memcpy(fusionEKF.timeSlots[i].insState, pPos, sizeof(float)*3);
+//		memcpy(fusionEKF.timeSlots[i].insState+3, pVel, sizeof(float)*2);
+//		memcpy(fusionEKF.timeSlots[i].meas.pos, pPos, sizeof(float)*3);
+//	}
 }
 
 void ekfStateFunc(arm_matrix_instance_f32* pX, const arm_matrix_instance_f32* pU)
@@ -191,4 +287,47 @@ static void ekfMeasJacobianFunc(const arm_matrix_instance_f32* pX, arm_matrix_in
 	MAT_ELEMENT(*pH, 0, 0) = 1.0f;
 	MAT_ELEMENT(*pH, 1, 1) = 1.0f;
 	MAT_ELEMENT(*pH, 2, 2) = 1.0f;
+}
+
+float AngleNormalize(float a)
+{
+	return mod(a + M_PI, M_TWOPI) - M_PI;
+}
+
+static float mod(float x, float y)
+{
+	if(y == 0.0f)
+		return x;
+
+	float m = x - y * floorf(x / y);
+
+	// handle boundary cases resulted from floating-point cut off:
+	if(y > 0) // modulo range: [0..y)
+	{
+		if(m >= y)
+			return 0;
+
+		if(m < 0)
+		{
+			if(y + m == y)
+				return 0;
+			else
+				return y + m;
+		}
+	}
+	else // modulo range: (y..0]
+	{
+		if(m <= y)
+			return 0;
+
+		if(m > 0)
+		{
+			if(y + m == y)
+				return 0;
+			else
+				return y + m;
+		}
+	}
+
+	return m;
 }
