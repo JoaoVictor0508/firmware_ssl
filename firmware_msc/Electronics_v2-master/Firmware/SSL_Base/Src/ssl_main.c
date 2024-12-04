@@ -19,6 +19,8 @@
 #include "ekf_fusion.h"
 #include "l3gd20.h"
 #include "lsm303dlhc.h"
+#include "lag_element.h"
+#include "signal_statistics.h"
 #include <stdio.h>
 
 #include "encoder.h"
@@ -66,6 +68,9 @@ SPIData_t radioData;
 #define MAX(x,y) ((x)>(y)?(x):(y))
 static float PYTHAGF(float a, float b);
 
+#define CTRL_DELTA_T_IN_US 4000
+#define CTRL_DELTA_T (CTRL_DELTA_T_IN_US*1e-6f)
+
 #define CTRL_MOTOR_TO_WHEEL_RATIO robotData.specs.driveTrain.motor2WheelRatio
 #define CTRL_WHEEL_TO_MOTOR_RATIO robotData.specs.driveTrain.wheel2MotorRatio
 
@@ -76,6 +81,8 @@ void calibrateSensors();
 void updateRobotMath();
 
 void RobotMathMotorVelToLocalVel(const int16_t* pMotor, float* pLocal);
+
+LagElementPT1 lagAccel[2];
 
 static FusionEKFConfig configFusionKF = {
 	.posNoiseXY = 0.001f,
@@ -180,6 +187,9 @@ void setup()
 
     calibrateSensors();
     updateRobotMath();
+
+	LagElementPT1Init(&lagAccel[0], 1.0f, 0.04f, CTRL_DELTA_T);
+	LagElementPT1Init(&lagAccel[1], 1.0f, 0.04f, CTRL_DELTA_T);
 
     nRF24_RadioConfig();
     showRobotID();
@@ -690,14 +700,14 @@ void estimateState()
 	int16_t accel_xyz[3] = {0};
 
     BSP_ACCELERO_GetXYZ(accel_xyz);
-	robotData.sensors.acc.linAcc[0] = accel_xyz[0] * 0.061f / 0.10197162129779f / 1000.f - robotData.offsetAcc[0];
-	robotData.sensors.acc.linAcc[1] = accel_xyz[1] * 0.061f / 0.10197162129779f / 1000.f - robotData.offsetAcc[1];
-	robotData.sensors.acc.linAcc[2] = accel_xyz[2] * 0.061f / 0.10197162129779f / 1000.f + robotData.offsetAcc[2];
+	robotData.sensors.acc.linAcc[0] = LagElementPT1Process(&lagAccel[0], accel_xyz[0] * 0.061f / 0.10197162129779f / 1000.f - robotData.offsetAcc[0]); // m/s^2
+	robotData.sensors.acc.linAcc[1] = LagElementPT1Process(&lagAccel[0],accel_xyz[1] * 0.061f / 0.10197162129779f / 1000.f - robotData.offsetAcc[1]); // m/s^2
+	robotData.sensors.acc.linAcc[2] = accel_xyz[2] * 0.061f / 0.10197162129779f / 1000.f + robotData.offsetAcc[2]; // m/s^2
 
 	BSP_GYRO_GetXYZ(gyro_xyz);
-	robotData.sensors.gyr.rotVel[0] = (gyro_xyz[0] / 1000) - robotData.offsetGyr[0];// - 0.225843;
-	robotData.sensors.gyr.rotVel[1] = (gyro_xyz[1] / 1000) - robotData.offsetGyr[1];// + 0.089630;
-	robotData.sensors.gyr.rotVel[2] = (gyro_xyz[2] / 1000) - robotData.offsetGyr[2];// + 0.631300;
+	robotData.sensors.gyr.rotVel[0] = (gyro_xyz[0] / 1000) - robotData.offsetGyr[0]; // º/s
+	robotData.sensors.gyr.rotVel[1] = (gyro_xyz[1] / 1000) - robotData.offsetGyr[1]; // º/s
+	robotData.sensors.gyr.rotVel[2] = (gyro_xyz[2] / 1000) - robotData.offsetGyr[2]; // º/s
 
 	robotData.sensors.vision.pos[0] = robotData.pose.x / 1000.0; // m
 	robotData.sensors.vision.pos[1] = robotData.pose.y / 1000.0; // m
