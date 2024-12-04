@@ -12,6 +12,8 @@
 #include "stm32f4xx_hal.h"
 #include "arm_math.h"
 
+#define MAT_ELEMENT(mat,r,c) ((mat).pData[(mat).numCols*(r)+(c)])
+
 #define KF_SIZE_A(f)		(f*f)
 #define KF_SIZE_B(f,g)		(f*g)
 #define KF_SIZE_C(h,f)		(h*f)
@@ -32,10 +34,10 @@
 	+KF_SIZE_EZ(h)+KF_SIZE_X(f)+KF_SIZE_SIGMA(f)+KF_SIZE_K(f,h)+KF_SIZE_U(g) \
 	+KF_SIZE_Z(h)+KF_SIZE_MAX(max)*3+KF_SIZE_X(f))
 
-typedef void(*KFStateFunc)(arm_matrix_instance_f32* pX, const arm_matrix_instance_f32* pU);
-//typedef void(*EKFStateJacobianFunc)(const arm_matrix_instance_f32* pX, const arm_matrix_instance_f32* pU, arm_matrix_instance_f32* pF);
-//typedef void(*EKFMeasFunc)(const arm_matrix_instance_f32* pX, arm_matrix_instance_f32* pY);
-//typedef void(*EKFMeasJacobianFunc)(const arm_matrix_instance_f32* pX, arm_matrix_instance_f32* pH);
+typedef void(*KFStateFunc)(arm_matrix_instance_f32* pX, const arm_matrix_instance_f32* pU, float dt);
+typedef void(*EKFStateJacobianFunc)(const arm_matrix_instance_f32* pX, const arm_matrix_instance_f32* pU, arm_matrix_instance_f32* pF, float dt);
+typedef void(*EKFMeasFunc)(const arm_matrix_instance_f32* pX, arm_matrix_instance_f32* pY);
+typedef void(*EKFMeasJacobianFunc)(const arm_matrix_instance_f32* pX, arm_matrix_instance_f32* pH);
 
 typedef struct _KF
 {
@@ -44,6 +46,9 @@ typedef struct _KF
 	uint16_t h;
 
 	KFStateFunc pState;
+	EKFStateJacobianFunc pStateJacobian;
+	EKFMeasFunc pMeas;
+	EKFMeasJacobianFunc pMeasJacobian;
 
 	// user matrices
 	arm_matrix_instance_f32 A;		// (f x f)
@@ -74,7 +79,7 @@ typedef struct _KF
 
 void KFInit(KF* pKF, uint16_t f, uint16_t g, uint16_t h, float* pData);
 void KFSetOrientationComponent(KF* pKF, uint32_t stateIndex);
-void KFPredict(KF* pKF);
+void KFPredict(KF* pKF, float dt);
 void KFUpdate(KF* pKF);
 arm_status arm_mat_identity_f32(arm_matrix_instance_f32* pMat);
 void arm_mat_zero_f32(arm_matrix_instance_f32* pMat);

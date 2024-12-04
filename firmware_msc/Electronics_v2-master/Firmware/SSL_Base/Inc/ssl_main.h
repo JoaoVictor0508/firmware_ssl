@@ -8,6 +8,9 @@
 #ifndef INC_SSL_MAIN_H_
 #define INC_SSL_MAIN_H_
 
+#define ARM_MATH_CM4
+#include "stm32f4xx_hal.h"
+#include "arm_math.h"
 #include "kickConfig.h"
 #include "main.h"
 #include "motorControl.h"
@@ -54,8 +57,15 @@ typedef struct _RobotSensors
 	{
 		uint32_t updated;
 		uint32_t time;
-		float encVel[3];
+		float localVel[3];
 	} encoder;
+
+	struct
+	{
+		uint8_t updated;
+		uint32_t time;
+		int8_t theoVel[3];
+	} theoreticalVel;
 
 	struct PACKED
 	{
@@ -63,23 +73,55 @@ typedef struct _RobotSensors
 		uint32_t time;		// local arrival time (systime)
 		uint32_t delay;		// t [us]
 		float pos[3];		// X, Y, theta [m]
-		uint32_t camId;
-		uint32_t noVision;
+//		uint32_t camId;
+//		uint32_t noVision;
 	} vision;
 } RobotSensors;
+
+typedef struct _RobotMath
+{
+	float theta_rad[4];	// wheel angles in [rad]
+
+	arm_matrix_instance_f32 matXYW2Motor; // 4x3
+	arm_matrix_instance_f32 matMotor2XYW; // 3x4
+} RobotMath;
+
+typedef struct _DriveTrainParams
+{
+	float motor2WheelRatio;
+	float wheel2MotorRatio;
+//	MotorParams motor;
+} DriveTrainParams;
+
+typedef struct _PhysicalParams
+{
+	float wheelRadius_m;
+	float frontAngle_deg;
+	float backAngle_deg;
+	float botRadius_m; // Robot center to wheel/ground contact point
+	float mass_kg;
+	float dribblerDistance_m; // from center of robot to center of ball in front of robot
+	float dribblerWidth_m; // width the ball can move while at the dribbler
+	float centerOfGravity_m[3]; // measured from geometric robot center point on ground
+	float massDistributionZ; // Factor between 0.5 (mass evenly distributed/solid cylinder) and 1.0 (all mass at outer radius/hollow shell), used for inertia calculation
+} PhysicalParams;
+
+typedef struct _RobotSpecs
+{
+	DriveTrainParams driveTrain;
+//	DribblerParams dribbler;
+	PhysicalParams physical;
+} RobotSpecs;
 
 typedef struct _RobotState
 {
 	float pos[3];	// [m]
 	float vel[3];	// [m/s]
-	float acc[3];
 	float Sigma[5][5];
 	float kalman_gain[5][3];
-	float magZ;     // [rad]
 
 	uint32_t posUpdated;
 	uint32_t velUpdated;
-	uint32_t accUpdated;
 } RobotState;
 
 typedef struct RobotData_t
@@ -87,7 +129,14 @@ typedef struct RobotData_t
     uint32_t battery;
     int16_t mVbattery;
 
+    float offsetAcc[3];
+    float offsetGyr[3];
+
     RobotSensors sensors;
+
+    RobotSpecs specs;
+
+    RobotMath math;
 
     RobotState state;
 
@@ -150,10 +199,10 @@ typedef union DebugData_t {
         uint8_t posYLow;         // [25]
         uint8_t posThetaHigh;    // [26]
         uint8_t posThetaLow;     // [27]
-        uint8_t data28;          // [28]
-        uint8_t data29;          // [29]
-        uint8_t data30;          // [30]
-        uint8_t data31;          // [31]
+        uint8_t velXHigh;          // [28]
+        uint8_t velXLow;          // [29]
+        uint8_t velYHigh;          // [30]
+        uint8_t velYLow;          // [31]
     };
     uint8_t data[DEBUG_SIZE];
 } DebugData_t;
@@ -176,6 +225,12 @@ static RobotData_t robotData = {.battery = 0,
                                 .debugKick = false,
                                 .pose = {.x = 0, .y = 0, .theta = 0},
                                 .rollerEnable = false,
+								.specs.physical.wheelRadius_m = 54*1e-3,
+								.specs.driveTrain.motor2WheelRatio = 20.0 / 60.0,
+								.specs.driveTrain.wheel2MotorRatio = 60.0 / 20.0,
+								.specs.physical.frontAngle_deg = 33.0,
+								.specs.physical.backAngle_deg = 33.0,
+								.specs.physical.botRadius_m = 80.5*1e-3,
                                 .rollerTimer = 0};
 
 static DebugData_t debugData;
@@ -252,5 +307,7 @@ void readBallSensor();
  * @brief Faz a estimativa de posição e velocidade do robô
  */
 void estimateState();
+
+void motorVelToLocalVel(const int16_t* pMotor, float* pLocal);
 
 #endif /* INC_SSL_MAIN_H_ */

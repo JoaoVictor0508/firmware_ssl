@@ -54,6 +54,7 @@ typedef struct _StateEKF
 	float insState[5];
 	float accGyr[3];
 	float pos[3];
+	float vel[3];
 } StateEKF;
 
 #define FUSION_EKF_MAX_DELAY 128 // must be power of 2
@@ -80,17 +81,24 @@ typedef struct _FusionEKF
 
 	FusionEKFConfig* pConfig;
 
-//	FusionEKFTimeSlot timeSlots[FUSION_EKF_MAX_DELAY];
 	FusionEKFTimeSlot lastState;
 	uint32_t timeSlotNow;
 
 	bool first_vision_meas;
 
+	bool predict_now;
+
 //	ModelEnc modelEnc;
+
+	uint32_t predict_counter;
+
+	uint32_t update_counter;
 
 	LagElementPT1 lagAccel[2];
 
 	uint32_t lastTime;
+
+	uint32_t lastUpdateTime;
 
 } FusionEKF;
 
@@ -100,6 +108,13 @@ extern FusionEKF fusionEKF;
 //void FusionEKFInit(FusionEKFConfig* pConfigEkf, ModelEncConfig* pConfigModel);
 void FusionEKFInit();
 void FusionEKFUpdate(const RobotSensors* pSensors, RobotState* pState);
+void FusionEKFUpdate_model_vision(const RobotSensors* pSensors, RobotState* pState);
+void FusionEKFUpdate_model_encoder(const RobotSensors* pSensors, RobotState* pState);
+void FusionEKFUpdate_model_imu(const RobotSensors* pSensors, RobotState* pState);
+void FusionEKFUpdate_imu_vision(const RobotSensors* pSensors, RobotState* pState);
+void FusionEKFUpdate_imu_encoder(const RobotSensors* pSensors, RobotState* pState);
+void FusionEKFUpdate_encoder_vision(const RobotSensors* pSensors, RobotState* pState);
+void FusionEKFUpdate_encoder_imu(const RobotSensors* pSensors, RobotState* pState);
 void FusionEKFSetState(const float* pPos); // falta adicionar a velocidade local dos encoders
 void FusionEKFConfigUpdateCallback(uint16_t cfgId);
 
