@@ -60,6 +60,23 @@ extern __IO uint16_t uhADCxConvertedValue[2];
 RadioRXPacket_t receivedPacket;
 SPIData_t radioData;
 
+#define SVD_MAX_SIZE 10
+
+#define SIGNF(a, b) ((b) >= 0.0 ? fabsf(a) : -fabsf(a))
+#define MAX(x,y) ((x)>(y)?(x):(y))
+static float PYTHAGF(float a, float b);
+
+#define CTRL_MOTOR_TO_WHEEL_RATIO robotData.specs.driveTrain.motor2WheelRatio
+#define CTRL_WHEEL_TO_MOTOR_RATIO robotData.specs.driveTrain.wheel2MotorRatio
+
+arm_status arm_mat_pinv(const arm_matrix_instance_f32* A, arm_matrix_instance_f32* B);
+arm_status arm_mat_svd(arm_matrix_instance_f32* U, arm_matrix_instance_f32* S, arm_matrix_instance_f32* V);
+
+void calibrateSensors();
+void updateRobotMath();
+
+void RobotMathMotorVelToLocalVel(const int16_t* pMotor, float* pLocal);
+
 static FusionEKFConfig configFusionKF = {
 	.posNoiseXY = 0.001f,
 	.posNoiseW = 0.001f,
@@ -161,6 +178,9 @@ void setup()
     BSP_ACCELERO_Init();
     BSP_GYRO_Init();
 
+    calibrateSensors();
+    updateRobotMath();
+
     nRF24_RadioConfig();
     showRobotID();
     initMotors();
@@ -201,6 +221,111 @@ void runMotors()
     setRollerCommand(&robotData.rollerSpeed);
 
     runMotorControl(); // Controle via PWM
+}
+
+void calibrateSensors()
+{
+	HAL_GPIO_WritePin(GREEN_LED_GPIO_Port, GREEN_LED_Pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(ORANGE_LED_GPIO_Port, ORANGE_LED_Pin, GPIO_PIN_SET);
+
+	uint16_t num_samples = 500;
+
+	float Gyro_xyz[3] = {0};
+	float gyro_x = 0.0;
+	float gyro_y = 0.0;
+	float gyro_z = 0.0;
+
+	float gyro_x_validation = 0.0;
+	float gyro_y_validation = 0.0;
+	float gyro_z_validation = 0.0;
+
+	int16_t Accel_xyz[3] = {0};
+	float accel_x = 0.0;
+	float accel_y = 0.0;
+	float accel_z = 0.0;
+
+	float accel_x_validation = 0.0;
+	float accel_y_validation = 0.0;
+	float accel_z_validation = 0.0;
+
+	bool calibrated = false;
+
+	while(calibrated == false)
+	{
+		for(uint16_t sample = 0; sample < num_samples; sample++)
+		{
+			BSP_ACCELERO_GetXYZ(Accel_xyz);
+
+			accel_x += Accel_xyz[0] * 0.061f / 0.10197162129779f / 1000.f;
+			accel_y += Accel_xyz[1] * 0.061f / 0.10197162129779f / 1000.f;
+			accel_z += Accel_xyz[2] * 0.061f / 0.10197162129779f / 1000.f;
+
+			BSP_GYRO_GetXYZ(Gyro_xyz);
+
+			gyro_x += (Gyro_xyz[0] / 1000.0);
+			gyro_y += (Gyro_xyz[1] / 1000.0);
+			gyro_z += (Gyro_xyz[2] / 1000.0);
+		}
+
+		robotData.offsetAcc[0] = accel_x / num_samples;
+		robotData.offsetAcc[1] = accel_y / num_samples;
+		robotData.offsetAcc[2] = 9.81 - accel_z / num_samples;
+
+		robotData.offsetGyr[0] = gyro_x / num_samples;
+		robotData.offsetGyr[1] = gyro_y / num_samples;
+		robotData.offsetGyr[2] = gyro_z / num_samples;
+
+		for(uint16_t sample = 0; sample < 50; sample++)
+		{
+			BSP_ACCELERO_GetXYZ(Accel_xyz);
+
+			accel_x_validation += Accel_xyz[0] * 0.061f / 0.10197162129779f / 1000.f - robotData.offsetAcc[0];
+			accel_y_validation += Accel_xyz[1] * 0.061f / 0.10197162129779f / 1000.f - robotData.offsetAcc[1];
+			accel_z_validation += Accel_xyz[2] * 0.061f / 0.10197162129779f / 1000.f + robotData.offsetAcc[2];
+
+			BSP_GYRO_GetXYZ(Gyro_xyz);
+
+			gyro_x_validation += (Gyro_xyz[0] / 1000.0) - robotData.offsetGyr[0];
+			gyro_y_validation += (Gyro_xyz[1] / 1000.0) - robotData.offsetGyr[1];
+			gyro_z_validation += (Gyro_xyz[2] / 1000.0) - robotData.offsetGyr[2];
+		}
+
+		calibrated = true;
+
+		HAL_GPIO_WritePin(GREEN_LED_GPIO_Port, GREEN_LED_Pin, GPIO_PIN_RESET);
+		HAL_GPIO_WritePin(ORANGE_LED_GPIO_Port, ORANGE_LED_Pin, GPIO_PIN_RESET);
+	}
+}
+
+void updateRobotMath()
+{
+	static float pXYW2Motor[12];
+	static float pMotor2XYW[12];
+
+	robotData.math.matXYW2Motor = (arm_matrix_instance_f32){4, 3, pXYW2Motor};
+	robotData.math.matMotor2XYW = (arm_matrix_instance_f32){3, 4, pMotor2XYW};
+
+	float frontAngle_deg = robotData.specs.physical.frontAngle_deg;
+	float backAngle_deg = robotData.specs.physical.backAngle_deg;
+	float botRadius_m = robotData.specs.physical.botRadius_m;
+
+	float alpha_rad = frontAngle_deg *((float)M_PI)/180.0f;
+	float beta_rad = backAngle_deg * ((float)M_PI)/180.0f;
+
+	robotData.math.theta_rad[0] = alpha_rad;
+	robotData.math.theta_rad[1] = PI-alpha_rad;
+	robotData.math.theta_rad[2] = PI+beta_rad;
+	robotData.math.theta_rad[3] = 2*PI-beta_rad;
+
+	for(uint8_t i = 0; i < 4; i++)
+	{
+		// construct matrix for XYW velocity to motor velocity conversion
+		MAT_ELEMENT(robotData.math.matXYW2Motor, i, 0) = -sinf(robotData.math.theta_rad[i]);
+		MAT_ELEMENT(robotData.math.matXYW2Motor, i, 1) = cosf(robotData.math.theta_rad[i]);
+		MAT_ELEMENT(robotData.math.matXYW2Motor, i, 2) = botRadius_m;
+	}
+
+	arm_mat_pinv(&robotData.math.matXYW2Motor, &robotData.math.matMotor2XYW);
 }
 
 void HAL_IncTick()
@@ -394,12 +519,17 @@ void updateDebugInfo()
                       robotData.encoderCount[MOTOR_3]);
     convertDebugSpeed(&debugData.count4High, &debugData.count4Low,
                       robotData.encoderCount[MOTOR_4]);
+
     convertDebugSpeed(&debugData.posXHigh, &debugData.posXLow,
     				  robotData.state.pos[0]);
     convertDebugSpeed(&debugData.posYHigh, &debugData.posYLow,
 					  robotData.state.pos[1]);
     convertDebugSpeed(&debugData.posThetaHigh, &debugData.posThetaLow,
 					  robotData.state.pos[2]);
+    convertDebugSpeed(&debugData.velXHigh, &debugData.velXLow,
+    					  robotData.state.vel[0]);
+    convertDebugSpeed(&debugData.velYHigh, &debugData.velYLow,
+    					  robotData.state.vel[1]);
     debugData.capacitorVoltage = robotData.capacitorVoltage;
     debugData.packetFrequency = radioData.packetFrequency;
 }
@@ -560,20 +690,376 @@ void estimateState()
 	int16_t accel_xyz[3] = {0};
 
     BSP_ACCELERO_GetXYZ(accel_xyz);
-	robotData.sensors.acc.linAcc[0] = accel_xyz[0] * 0.061f / 0.10197162129779f / 1000.f + 0.0498709083 - 0.0872829258;
-	robotData.sensors.acc.linAcc[1] = accel_xyz[1] * 0.061f / 0.10197162129779f / 1000.f + 0.266912103;
-	robotData.sensors.acc.linAcc[2] = accel_xyz[2] * 0.061f / 0.10197162129779f / 1000.f + 0.452083707;
+	robotData.sensors.acc.linAcc[0] = accel_xyz[0] * 0.061f / 0.10197162129779f / 1000.f - robotData.offsetAcc[0];
+	robotData.sensors.acc.linAcc[1] = accel_xyz[1] * 0.061f / 0.10197162129779f / 1000.f - robotData.offsetAcc[1];
+	robotData.sensors.acc.linAcc[2] = accel_xyz[2] * 0.061f / 0.10197162129779f / 1000.f + robotData.offsetAcc[2];
 
 	BSP_GYRO_GetXYZ(gyro_xyz);
-	robotData.sensors.gyr.rotVel[0] = (gyro_xyz[0] / 1000) - 0.256533086;// - 0.225843;
-	robotData.sensors.gyr.rotVel[1] = (gyro_xyz[1] / 1000) + 0.116062336;// + 0.089630;
-	robotData.sensors.gyr.rotVel[2] = (gyro_xyz[2] / 1000) + 0.503718257;// + 0.631300;
+	robotData.sensors.gyr.rotVel[0] = (gyro_xyz[0] / 1000) - robotData.offsetGyr[0];// - 0.225843;
+	robotData.sensors.gyr.rotVel[1] = (gyro_xyz[1] / 1000) - robotData.offsetGyr[1];// + 0.089630;
+	robotData.sensors.gyr.rotVel[2] = (gyro_xyz[2] / 1000) - robotData.offsetGyr[2];// + 0.631300;
 
-	robotData.sensors.vision.pos[0] = robotData.pose.x;
-	robotData.sensors.vision.pos[1] = robotData.pose.y;
-	robotData.sensors.vision.pos[2] = robotData.pose.theta;
+	robotData.sensors.vision.pos[0] = robotData.pose.x / 1000.0; // m
+	robotData.sensors.vision.pos[1] = robotData.pose.y / 1000.0; // m
+	robotData.sensors.vision.pos[2] = robotData.pose.theta * M_PI / 180.0; // rad
+
+	robotData.sensors.theoreticalVel.theoVel[0] = receivedPacket.velocityX; // m/s
+	robotData.sensors.theoreticalVel.theoVel[1] = receivedPacket.velocityY; // m/s
+	robotData.sensors.theoreticalVel.theoVel[2] = receivedPacket.velocityW; // rad/s
+
+	RobotMathMotorVelToLocalVel(robotData.wheelSpeed, robotData.sensors.encoder.localVel); // wheel speed in rpm, converted to m/s
 
 	FusionEKFUpdate(&robotData.sensors, &robotData.state);
+}
+
+void RobotMathMotorVelToLocalVel(const int16_t* pMotor, float* pLocal)
+{
+	float motor[4] = {pMotor[0], pMotor[1], pMotor[2], pMotor[3]};
+	arm_matrix_instance_f32 matMot = { 4, 1, motor };
+
+	for(uint8_t i = 0; i < 4; i++)
+		motor[i] *= (robotData.specs.physical.wheelRadius_m * 2 * M_PI / 60)*CTRL_MOTOR_TO_WHEEL_RATIO;	// value is now speed over ground [m/s]
+
+	// convert to local velocity
+	arm_matrix_instance_f32 matLocal = {3, 1, pLocal};
+	arm_mat_mult_f32(&robotData.math.matMotor2XYW, &matMot, &matLocal);
+}
+
+arm_status arm_mat_pinv(const arm_matrix_instance_f32* A, arm_matrix_instance_f32* B)
+{
+	// stack usage 4*10*10 = 400B
+	// maximum matrix size is SVD_MAX_SIZE * SVD_MAX_SIZE
+	uint8_t transposed = 0;
+	arm_matrix_instance_f32 U = {A->numRows, A->numCols, (float[SVD_MAX_SIZE*SVD_MAX_SIZE]){}};
+
+	if(A->numRows < A->numCols)
+	{
+		U.numRows = A->numCols;
+		U.numCols = A->numRows;
+		arm_mat_trans_f32(A, &U);
+		transposed = 1;
+	}
+	else
+	{
+		U.numRows = A->numRows;
+		U.numCols = A->numCols;
+		memcpy(U.pData, A->pData, sizeof(float)*A->numRows*A->numCols);
+	}
+
+	arm_matrix_instance_f32 S = {U.numCols, U.numCols, (float[SVD_MAX_SIZE*SVD_MAX_SIZE]){}};
+	arm_matrix_instance_f32 V = {U.numCols, U.numCols, (float[SVD_MAX_SIZE*SVD_MAX_SIZE]){}};
+	arm_matrix_instance_f32 tmp1 = {U.numCols, U.numRows, (float[SVD_MAX_SIZE*SVD_MAX_SIZE]){}};
+
+	arm_status svdResult = arm_mat_svd(&U, &S, &V);
+	if(svdResult)
+		return svdResult;
+
+	// Moore-Penrose pseudo-inverse
+	// >>> V * inv(S) * U'
+
+	// S = inv(S)
+	for(uint16_t i = 0; i < S.numCols; i++)
+	{
+		if(MAT_ELEMENT(S, i, i) != 0.0f)
+			MAT_ELEMENT(S, i, i) = 1.0f/MAT_ELEMENT(S, i, i);
+	}
+
+	// tmp1 = U'
+	arm_mat_trans_f32(&U, &tmp1);
+
+	// U = S*tmp1
+	float tmp = U.numCols;
+	U.numCols = U.numRows;
+	U.numRows = tmp;
+	arm_mat_mult_f32(&S, &tmp1, &U);
+
+	// tmp1 = V*U
+	tmp1.numRows = U.numRows;
+	tmp1.numCols = U.numCols;
+	arm_mat_mult_f32(&V, &U, &tmp1);
+
+	if(transposed)
+		arm_mat_trans_f32(&tmp1, B);
+	else
+		memcpy(B->pData, tmp1.pData, sizeof(float)*A->numRows*A->numCols);
+
+	return ARM_MATH_SUCCESS;
+}
+
+arm_status arm_mat_svd(arm_matrix_instance_f32* U, arm_matrix_instance_f32* S, arm_matrix_instance_f32* V)
+{
+    int16_t flag, i, its, j, jj, k;
+    float c, f, h, s, x, y, z;
+    float anorm = 0.0, g = 0.0, scale = 0.0;
+    float rv1[SVD_MAX_SIZE];
+    int16_t l = 0;
+    int16_t nm = 0;
+    uint16_t m = U->numRows;
+    uint16_t n = U->numCols;
+
+    if (m < n || n > SVD_MAX_SIZE)
+        return ARM_MATH_SIZE_MISMATCH;
+
+/* Householder reduction to bidiagonal form */
+    for (i = 0; i < n; i++)
+    {
+        /* left-hand reduction */
+        l = i + 1;
+        rv1[i] = scale * g;
+        g = s = scale = 0.0;
+        if (i < m)
+        {
+            for (k = i; k < m; k++)
+                scale += fabsf(MAT_ELEMENT(*U,k,i));
+            if (scale)
+            {
+                for (k = i; k < m; k++)
+                {
+                    MAT_ELEMENT(*U,k,i) = (MAT_ELEMENT(*U,k,i)/scale);
+                    s += (MAT_ELEMENT(*U,k,i) * MAT_ELEMENT(*U,k,i));
+                }
+                f = MAT_ELEMENT(*U,i,i);
+                g = -SIGNF(sqrtf(s), f);
+                h = f * g - s;
+                MAT_ELEMENT(*U,i,i) = (f - g);
+                if (i != n - 1)
+                {
+                    for (j = l; j < n; j++)
+                    {
+                        for (s = 0.0, k = i; k < m; k++)
+                            s += (MAT_ELEMENT(*U,k,i) * MAT_ELEMENT(*U,k,j));
+                        f = s / h;
+                        for (k = i; k < m; k++)
+                            MAT_ELEMENT(*U,k,j) += (f * MAT_ELEMENT(*U,k,i));
+                    }
+                }
+                for (k = i; k < m; k++)
+                    MAT_ELEMENT(*U,k,i) = (MAT_ELEMENT(*U,k,i)*scale);
+            }
+        }
+        MAT_ELEMENT(*S,i,i) = (scale * g);
+
+        /* right-hand reduction */
+        g = s = scale = 0.0;
+        if (i < m && i != n - 1)
+        {
+            for (k = l; k < n; k++)
+                scale += fabsf(MAT_ELEMENT(*U,i,k));
+            if (scale)
+            {
+                for (k = l; k < n; k++)
+                {
+                    MAT_ELEMENT(*U,i,k) = (MAT_ELEMENT(*U,i,k)/scale);
+                    s += (MAT_ELEMENT(*U,i,k) * MAT_ELEMENT(*U,i,k));
+                }
+                f = MAT_ELEMENT(*U,i,l);
+                g = -SIGNF(sqrtf(s), f);
+                h = f * g - s;
+                MAT_ELEMENT(*U,i,l) = (f - g);
+                for (k = l; k < n; k++)
+                    rv1[k] = MAT_ELEMENT(*U,i,k) / h;
+                if (i != m - 1)
+                {
+                    for (j = l; j < m; j++)
+                    {
+                        for (s = 0.0, k = l; k < n; k++)
+                            s += (MAT_ELEMENT(*U,j,k) * MAT_ELEMENT(*U,i,k));
+                        for (k = l; k < n; k++)
+                            MAT_ELEMENT(*U,j,k) += (s * rv1[k]);
+                    }
+                }
+                for (k = l; k < n; k++)
+                    MAT_ELEMENT(*U,i,k) = (MAT_ELEMENT(*U,i,k)*scale);
+            }
+        }
+        anorm = MAX(anorm, (fabsf(MAT_ELEMENT(*S,i,i)) + fabsf(rv1[i])));
+    }
+
+    /* accumulate the right-hand transformation */
+    for (i = n - 1; i >= 0; i--)
+    {
+        if (i < n - 1)
+        {
+            if (g)
+            {
+                for (j = l; j < n; j++)
+                    MAT_ELEMENT(*V,j,i) = ((MAT_ELEMENT(*U,i,j) / MAT_ELEMENT(*U,i,l)) / g);
+                    /* float division to avoid underflow */
+                for (j = l; j < n; j++)
+                {
+                    for (s = 0.0, k = l; k < n; k++)
+                        s += (MAT_ELEMENT(*U,i,k) * MAT_ELEMENT(*V,k,j));
+                    for (k = l; k < n; k++)
+                        MAT_ELEMENT(*V,k,j) += (s * MAT_ELEMENT(*V,k,i));
+                }
+            }
+            for (j = l; j < n; j++)
+                MAT_ELEMENT(*V,i,j) = MAT_ELEMENT(*V,j,i) = 0.0;
+        }
+        MAT_ELEMENT(*V,i,i) = 1.0;
+        g = rv1[i];
+        l = i;
+    }
+
+    /* accumulate the left-hand transformation */
+    for (i = n - 1; i >= 0; i--)
+    {
+        l = i + 1;
+        g = MAT_ELEMENT(*S,i,i);
+        if (i < n - 1)
+            for (j = l; j < n; j++)
+                MAT_ELEMENT(*U,i,j) = 0.0;
+        if (g)
+        {
+            g = 1.0 / g;
+            if (i != n - 1)
+            {
+                for (j = l; j < n; j++)
+                {
+                    for (s = 0.0, k = l; k < m; k++)
+                        s += (MAT_ELEMENT(*U,k,i) * MAT_ELEMENT(*U,k,j));
+                    f = (s / MAT_ELEMENT(*U,i,i)) * g;
+                    for (k = i; k < m; k++)
+                        MAT_ELEMENT(*U,k,j) += (f * MAT_ELEMENT(*U,k,i));
+                }
+            }
+            for (j = i; j < m; j++)
+                MAT_ELEMENT(*U,j,i) = (MAT_ELEMENT(*U,j,i)*g);
+        }
+        else
+        {
+            for (j = i; j < m; j++)
+                MAT_ELEMENT(*U,j,i) = 0.0;
+        }
+        ++MAT_ELEMENT(*U,i,i);
+    }
+
+    /* diagonalize the bidiagonal form */
+    for (k = n - 1; k >= 0; k--)
+    {                             /* loop over singular values */
+        for (its = 0; its < 30; its++)
+        {                         /* loop over allowed iterations */
+            flag = 1;
+            for (l = k; l >= 0; l--)
+            {                     /* test for splitting */
+                nm = l - 1;
+                if (fabsf(rv1[l]) + anorm == anorm)
+                {
+                    flag = 0;
+                    break;
+                }
+                if (fabsf(MAT_ELEMENT(*S,nm,nm)) + anorm == anorm)
+                    break;
+            }
+            if (flag)
+            {
+                c = 0.0;
+                s = 1.0;
+                for (i = l; i <= k; i++)
+                {
+                    f = s * rv1[i];
+                    if (fabsf(f) + anorm != anorm)
+                    {
+                        g = MAT_ELEMENT(*S,i,i);
+                        h = PYTHAGF(f, g);
+                        MAT_ELEMENT(*S,i,i) = h;
+                        h = 1.0 / h;
+                        c = g * h;
+                        s = (- f * h);
+                        for (j = 0; j < m; j++)
+                        {
+                            y = MAT_ELEMENT(*U,j,nm);
+                            z = MAT_ELEMENT(*U,j,i);
+                            MAT_ELEMENT(*U,j,nm) = (y * c + z * s);
+                            MAT_ELEMENT(*U,j,i) = (z * c - y * s);
+                        }
+                    }
+                }
+            }
+            z = MAT_ELEMENT(*S,k,k);
+            if (l == k)
+            {                  /* convergence */
+                if (z < 0.0)
+                {              /* make singular value nonnegative */
+                    MAT_ELEMENT(*S,k,k) = (-z);
+                    for (j = 0; j < n; j++)
+                        MAT_ELEMENT(*V,j,k) = (-MAT_ELEMENT(*V,j,k));
+                }
+                break;
+            }
+
+            if (its >= 30)
+                return ARM_MATH_ARGUMENT_ERROR; // No convergence after 30,000! iterations
+
+            /* shift from bottom 2 x 2 minor */
+            x = MAT_ELEMENT(*S,l,l);
+            nm = k - 1;
+            y = MAT_ELEMENT(*S,nm,nm);
+            g = rv1[nm];
+            h = rv1[k];
+            f = ((y - z) * (y + z) + (g - h) * (g + h)) / (2.0 * h * y);
+            g = PYTHAGF(f, 1.0);
+            f = ((x - z) * (x + z) + h * ((y / (f + SIGNF(g, f))) - h)) / x;
+
+            /* next QR transformation */
+            c = s = 1.0;
+            for (j = l; j <= nm; j++)
+            {
+                i = j + 1;
+                g = rv1[i];
+                y = MAT_ELEMENT(*S,i,i);
+                h = s * g;
+                g = c * g;
+                z = PYTHAGF(f, h);
+                rv1[j] = z;
+                c = f / z;
+                s = h / z;
+                f = x * c + g * s;
+                g = g * c - x * s;
+                h = y * s;
+                y = y * c;
+                for (jj = 0; jj < n; jj++)
+                {
+                    x = MAT_ELEMENT(*V,jj,j);
+                    z = MAT_ELEMENT(*V,jj,i);
+                    MAT_ELEMENT(*V,jj,j) = (x * c + z * s);
+                    MAT_ELEMENT(*V,jj,i) = (z * c - x * s);
+                }
+                z = PYTHAGF(f, h);
+                MAT_ELEMENT(*S,j,j) = z;
+                if (z)
+                {
+                    z = 1.0 / z;
+                    c = f * z;
+                    s = h * z;
+                }
+                f = (c * g) + (s * y);
+                x = (c * y) - (s * g);
+                for (jj = 0; jj < m; jj++)
+                {
+                    y = MAT_ELEMENT(*U,jj,j);
+                    z = MAT_ELEMENT(*U,jj,i);
+                    MAT_ELEMENT(*U,jj,j) = (y * c + z * s);
+                    MAT_ELEMENT(*U,jj,i) = (z * c - y * s);
+                }
+            }
+            rv1[l] = 0.0;
+            rv1[k] = f;
+            MAT_ELEMENT(*S,k,k) = x;
+        }
+    }
+
+    return ARM_MATH_SUCCESS;
+}
+
+static float PYTHAGF(float a, float b)
+{
+	float at = fabsf(a), bt = fabsf(b), ct, result;
+
+    if (at > bt)       { ct = bt / at; result = at * sqrtf(1.0f + ct * ct); }
+    else if (bt > 0.0f) { ct = at / bt; result = bt * sqrtf(1.0f + ct * ct); }
+    else result = 0.0f;
+    return(result);
 }
 
 //=============================================================================

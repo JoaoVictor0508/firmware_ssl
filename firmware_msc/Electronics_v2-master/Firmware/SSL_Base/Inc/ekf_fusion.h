@@ -119,6 +119,6 @@ void FusionEKFSetState(const float* pPos); // falta adicionar a velocidade local
 void FusionEKFConfigUpdateCallback(uint16_t cfgId);
 
 float AngleNormalize(float a);
-static float mod(float x, float y);
+float mod(float x, float y);
 
 #endif /* INC_EKF_FUSION_H_ */

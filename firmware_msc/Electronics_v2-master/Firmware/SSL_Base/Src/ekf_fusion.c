@@ -979,7 +979,7 @@ float AngleNormalize(float a)
 	return mod(a + M_PI, M_TWOPI) - M_PI;
 }
 
-static float mod(float x, float y)
+float mod(float x, float y)
 {
 	if(y == 0.0f)
 		return x;
