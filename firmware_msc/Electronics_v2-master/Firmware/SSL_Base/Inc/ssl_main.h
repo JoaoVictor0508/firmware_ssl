@@ -64,7 +64,7 @@ typedef struct _RobotSensors
 	{
 		uint8_t updated;
 		uint32_t time;
-		int8_t theoVel[3];
+		float theoVel[3];
 	} theoreticalVel;
 
 	struct PACKED

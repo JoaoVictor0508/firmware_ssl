@@ -713,9 +713,9 @@ void estimateState()
 	robotData.sensors.vision.pos[1] = robotData.pose.y / 1000.0; // m
 	robotData.sensors.vision.pos[2] = robotData.pose.theta * M_PI / 180.0; // rad
 
-	robotData.sensors.theoreticalVel.theoVel[0] = receivedPacket.velocityX; // m/s
-	robotData.sensors.theoreticalVel.theoVel[1] = receivedPacket.velocityY; // m/s
-	robotData.sensors.theoreticalVel.theoVel[2] = receivedPacket.velocityW; // rad/s
+	robotData.sensors.theoreticalVel.theoVel[0] = receivedPacket.velocityX * MAX_VELOCITY / 100.0; // m/s
+	robotData.sensors.theoreticalVel.theoVel[1] = receivedPacket.velocityY * MAX_VELOCITY / 100.0; // m/s
+	robotData.sensors.theoreticalVel.theoVel[2] = receivedPacket.velocityW * MAX_ROTATION / 100.0; // rad/s
 
 	RobotMathMotorVelToLocalVel(robotData.wheelSpeed, robotData.sensors.encoder.localVel); // wheel speed in rpm, converted to m/s
 
