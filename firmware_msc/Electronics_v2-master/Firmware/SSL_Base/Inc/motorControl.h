@@ -67,8 +67,8 @@ typedef enum
 #define SPEED_LIMIT 260.f  // Limite de velocidade em [rad/s]
 #define WHEEL_RADIUS 27e-3 // Raio da roda em [m]
 #define MAX_RPM 2500       // Rotação máxima da roda [rpm]
-#define MAX_VELOCITY 3.0f  // Velocidade máxima em [m/s]
-#define MAX_ROTATION 30.5f  // Rotação máximo em [rad/s]
+#define MAX_VELOCITY 1.0f  // Velocidade máxima em [m/s]
+#define MAX_ROTATION 3.1415f  // Rotação máximo em [rad/s]
 
 #define TRANSMISSION 3 // Redução da transmissão (3:1)
 #define RADS_TO_RPM 60.f / (2.f * 3.14159265f)

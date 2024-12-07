@@ -238,7 +238,7 @@ void calibrateSensors()
 	HAL_GPIO_WritePin(GREEN_LED_GPIO_Port, GREEN_LED_Pin, GPIO_PIN_SET);
 	HAL_GPIO_WritePin(ORANGE_LED_GPIO_Port, ORANGE_LED_Pin, GPIO_PIN_SET);
 
-	uint16_t num_samples = 500;
+	uint16_t num_samples = 600;
 
 	float Gyro_xyz[3] = {0};
 	float gyro_x = 0.0;
@@ -521,25 +521,25 @@ void updateDebugInfo()
     convertDebugSpeed(&debugData.wheelSpeed4High, &debugData.wheelSpeed4Low,
                       robotData.wheelSpeed[MOTOR_4]);
 
-    convertDebugSpeed(&debugData.count1High, &debugData.count1Low,
-                      robotData.encoderCount[MOTOR_1]);
-    convertDebugSpeed(&debugData.count2High, &debugData.count2Low,
-                      robotData.encoderCount[MOTOR_2]);
-    convertDebugSpeed(&debugData.count3High, &debugData.count3Low,
-                      robotData.encoderCount[MOTOR_3]);
-    convertDebugSpeed(&debugData.count4High, &debugData.count4Low,
-                      robotData.encoderCount[MOTOR_4]);
+//    convertDebugSpeed(&debugData.count1High, &debugData.count1Low,
+//                      robotData.encoderCount[MOTOR_1]);
+//    convertDebugSpeed(&debugData.count2High, &debugData.count2Low,
+//                      robotData.encoderCount[MOTOR_2]);
+//    convertDebugSpeed(&debugData.count3High, &debugData.count3Low,
+//                      robotData.encoderCount[MOTOR_3]);
+//    convertDebugSpeed(&debugData.count4High, &debugData.count4Low,
+//                      robotData.encoderCount[MOTOR_4]);
 
     convertDebugSpeed(&debugData.posXHigh, &debugData.posXLow,
-    				  robotData.state.pos[0]);
+    					(int)(robotData.state.pos[0]*1000.0));
     convertDebugSpeed(&debugData.posYHigh, &debugData.posYLow,
-					  robotData.state.pos[1]);
+    					(int)(robotData.state.pos[1]*1000.0));
     convertDebugSpeed(&debugData.posThetaHigh, &debugData.posThetaLow,
-					  robotData.state.pos[2]);
+    					(int)(robotData.state.pos[2]*1000.0));
     convertDebugSpeed(&debugData.velXHigh, &debugData.velXLow,
-    					  robotData.state.vel[0]);
+					  	(int)(robotData.state.vel[0]*1000.0));
     convertDebugSpeed(&debugData.velYHigh, &debugData.velYLow,
-    					  robotData.state.vel[1]);
+    					(int)(robotData.state.vel[1]*1000.0));
     debugData.capacitorVoltage = robotData.capacitorVoltage;
     debugData.packetFrequency = radioData.packetFrequency;
 }
