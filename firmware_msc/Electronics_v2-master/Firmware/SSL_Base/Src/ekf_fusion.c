@@ -9,10 +9,12 @@
 
 static void initEKF();
 static void ekfStateFunc(arm_matrix_instance_f32* pX, const arm_matrix_instance_f32* pU, float dt);
+static void ekfStateFunc_encoder(arm_matrix_instance_f32* pX, const arm_matrix_instance_f32* pU, float dt);
+static void ekfStateFunc_model(arm_matrix_instance_f32* pX, const arm_matrix_instance_f32* pU);
 
 static void ekfStateJacobianFunc(const arm_matrix_instance_f32* pX, const arm_matrix_instance_f32* pU, arm_matrix_instance_f32* pF, float dt);
 static void ekfStateJacobianFunc_model(const arm_matrix_instance_f32* pX, const arm_matrix_instance_f32* pU, arm_matrix_instance_f32* pF);
-static void ekfStateJacobianFunc_encoder(const arm_matrix_instance_f32* pX, const arm_matrix_instance_f32* pU, arm_matrix_instance_f32* pF);
+static void ekfStateJacobianFunc_encoder(const arm_matrix_instance_f32* pX, const arm_matrix_instance_f32* pU, arm_matrix_instance_f32* pF, float dt);
 
 static void ekfMeasFuncPoseState(const arm_matrix_instance_f32* pX, arm_matrix_instance_f32* pY);
 static void ekfMeasFuncFullState(const arm_matrix_instance_f32* pX, arm_matrix_instance_f32* pY);
@@ -65,7 +67,7 @@ void FusionEKFUpdate(const RobotSensors* pSensors, RobotState* pState){
 //	KFUpdate(&fusionEKF.kf); // update state
 
 //	if(pSensors->vision.updated && isVisionSampleValid(pSensors->vision.pos, fusionEKF.vision.lastPos)) // see if vision is available AND if the vision sample is valid
-	if(pSensors->vision.updated || (new_sample_time - fusionEKF.lastUpdateTime > 1000))
+	if(pSensors->vision.updated)// || (new_sample_time - fusionEKF.lastUpdateTime > 1000))
 ////	if(fusionEKF.predict_now == false)
 	{
 		memcpy(fusionEKF.kf.z.pData, pSensors->vision.pos, sizeof(float)*3); // transfer the data from the vision to the Z matrix
@@ -751,8 +753,10 @@ static void initEKF()
 {
 	KFInit(&fusionEKF.kf, 5, 3, 3, fusionEKF.ekfData);
 	arm_mat_scale_f32(&fusionEKF.kf.Sigma, 0.001f, &fusionEKF.kf.Sigma);
-	fusionEKF.kf.pState = &ekfStateFunc;
-	fusionEKF.kf.pStateJacobian = &ekfStateJacobianFunc;
+//	fusionEKF.kf.pState = &ekfStateFunc;
+	fusionEKF.kf.pState = &ekfStateFunc_encoder;
+//	fusionEKF.kf.pStateJacobian = &ekfStateJacobianFunc;
+	fusionEKF.kf.pStateJacobian = &ekfStateJacobianFunc_encoder;
 	fusionEKF.kf.pMeas = &ekfMeasFuncPoseState;
 	fusionEKF.kf.pMeasJacobian = &ekfMeasJacobianFuncPoseState;
 
@@ -812,9 +816,9 @@ void ekfStateFunc_model(arm_matrix_instance_f32* pX, const arm_matrix_instance_f
 	MAT_ELEMENT(*pX, 4, 0) = vy1;
 }
 
-void ekfStateFunc_encoder(arm_matrix_instance_f32* pX, const arm_matrix_instance_f32* pU)
+void ekfStateFunc_encoder(arm_matrix_instance_f32* pX, const arm_matrix_instance_f32* pU, float dt)
 {
-	const float dt = 0.004f;
+//	const float dt = 0.004f;
 
 	float vel_x = MAT_ELEMENT(*pU, 0, 0);
 	float vel_y = MAT_ELEMENT(*pU, 1, 0);
@@ -896,9 +900,9 @@ static void ekfStateJacobianFunc_model(const arm_matrix_instance_f32* pX, const 
 	MAT_ELEMENT(*pF, 1, 4) = arm_sin_f32(p_w) * dt;
 }
 
-static void ekfStateJacobianFunc_encoder(const arm_matrix_instance_f32* pX, const arm_matrix_instance_f32* pU, arm_matrix_instance_f32* pF)
+static void ekfStateJacobianFunc_encoder(const arm_matrix_instance_f32* pX, const arm_matrix_instance_f32* pU, arm_matrix_instance_f32* pF, float dt)
 {
-	const float dt = 0.004f;
+//	const float dt = 0.004f;
 
 	float vel_x = MAT_ELEMENT(*pU, 0, 0);
 	float vel_y = MAT_ELEMENT(*pU, 1, 0);

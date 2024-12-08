@@ -90,12 +90,10 @@ static FusionEKFConfig configFusionKF = {
 	.velNoiseXY = 0.005f,
 	.visNoiseXY = 0.05f,
 	.visNoiseW = 0.1f,
+//	.visNoiseXY = 0.001f,
+//	.visNoiseW = 0.01f,
 	.outlierMaxVelXY = 3.0f,
 	.outlierMaxVelW = 3.0f,
-	.trackingCoeff = 1.0f,
-	.visCaptureDelay = 20,
-	.fusionHorizon = 35,
-	.visionTimeoutMs = 1000,
 	.emaAccelT = 0.005f,
 };
 
@@ -174,7 +172,7 @@ void setup()
     HAL_GPIO_WritePin(RIGHT_KICK_GPIO_Port, RIGHT_KICK_Pin, GPIO_PIN_RESET);
     HAL_GPIO_WritePin(LEFT_KICK_GPIO_Port, LEFT_KICK_Pin, GPIO_PIN_RESET);
 
-//    initialise_monitor_handles();
+    initialise_monitor_handles();
 
     HAL_Delay(500);
 
@@ -188,8 +186,8 @@ void setup()
     calibrateSensors();
     updateRobotMath();
 
-	LagElementPT1Init(&lagAccel[0], 1.0f, 0.04f, CTRL_DELTA_T);
-	LagElementPT1Init(&lagAccel[1], 1.0f, 0.04f, CTRL_DELTA_T);
+	LagElementPT1Init(&lagAccel[0], 1.0f, 0.005f, CTRL_DELTA_T);
+	LagElementPT1Init(&lagAccel[1], 1.0f, 0.005f, CTRL_DELTA_T);
 
     nRF24_RadioConfig();
     showRobotID();
@@ -238,7 +236,7 @@ void calibrateSensors()
 	HAL_GPIO_WritePin(GREEN_LED_GPIO_Port, GREEN_LED_Pin, GPIO_PIN_SET);
 	HAL_GPIO_WritePin(ORANGE_LED_GPIO_Port, ORANGE_LED_Pin, GPIO_PIN_SET);
 
-	uint16_t num_samples = 600;
+	uint16_t calibration_samples = 600;
 
 	float Gyro_xyz[3] = {0};
 	float gyro_x = 0.0;
@@ -262,7 +260,7 @@ void calibrateSensors()
 
 	while(calibrated == false)
 	{
-		for(uint16_t sample = 0; sample < num_samples; sample++)
+		for(uint16_t sample = 0; sample < calibration_samples; sample++)
 		{
 			BSP_ACCELERO_GetXYZ(Accel_xyz);
 
@@ -277,13 +275,15 @@ void calibrateSensors()
 			gyro_z += (Gyro_xyz[2] / 1000.0);
 		}
 
-		robotData.offsetAcc[0] = accel_x / num_samples;
-		robotData.offsetAcc[1] = accel_y / num_samples;
-		robotData.offsetAcc[2] = 9.81 - accel_z / num_samples;
+		robotData.offsetAcc[0] = accel_x / calibration_samples;
+		robotData.offsetAcc[1] = accel_y / calibration_samples;
+		robotData.offsetAcc[2] = 9.81 - accel_z / calibration_samples;
 
-		robotData.offsetGyr[0] = gyro_x / num_samples;
-		robotData.offsetGyr[1] = gyro_y / num_samples;
-		robotData.offsetGyr[2] = gyro_z / num_samples;
+		robotData.offsetGyr[0] = gyro_x / calibration_samples;
+		robotData.offsetGyr[1] = gyro_y / calibration_samples;
+		robotData.offsetGyr[2] = gyro_z / calibration_samples;
+
+		uint16_t validation_samples = 50;
 
 		for(uint16_t sample = 0; sample < 50; sample++)
 		{
@@ -299,6 +299,25 @@ void calibrateSensors()
 			gyro_y_validation += (Gyro_xyz[1] / 1000.0) - robotData.offsetGyr[1];
 			gyro_z_validation += (Gyro_xyz[2] / 1000.0) - robotData.offsetGyr[2];
 		}
+
+		printf("Gyro X: ");
+		printf("%.6f", gyro_x_validation / validation_samples);
+		printf("\n");
+		printf("Gyro Y: ");
+		printf("%.6f", gyro_y_validation / validation_samples);
+		printf("\n");
+		printf("Gyro Z: ");
+		printf("%.6f", gyro_z_validation / validation_samples);
+		printf("\n");
+		printf("Accel X: ");
+		printf("%.6f", accel_x_validation / validation_samples);
+		printf("\n");
+		printf("Accel Y: ");
+		printf("%.6f", accel_y_validation / validation_samples);
+		printf("\n");
+		printf("Accel Z: ");
+		printf("%.6f", accel_z_validation / validation_samples);
+		printf("\n");
 
 		calibrated = true;
 
@@ -322,10 +341,10 @@ void updateRobotMath()
 	float alpha_rad = frontAngle_deg *((float)M_PI)/180.0f;
 	float beta_rad = backAngle_deg * ((float)M_PI)/180.0f;
 
-	robotData.math.theta_rad[0] = alpha_rad;
-	robotData.math.theta_rad[1] = PI-alpha_rad;
-	robotData.math.theta_rad[2] = PI+beta_rad;
-	robotData.math.theta_rad[3] = 2*PI-beta_rad;
+	robotData.math.theta_rad[0] = M_PI-alpha_rad;
+	robotData.math.theta_rad[1] = M_PI+beta_rad;
+	robotData.math.theta_rad[2] = 2*M_PI-beta_rad;
+	robotData.math.theta_rad[3] = alpha_rad;
 
 	for(uint8_t i = 0; i < 4; i++)
 	{
@@ -700,8 +719,8 @@ void estimateState()
 	int16_t accel_xyz[3] = {0};
 
     BSP_ACCELERO_GetXYZ(accel_xyz);
-	robotData.sensors.acc.linAcc[0] = LagElementPT1Process(&lagAccel[0], accel_xyz[0] * 0.061f / 0.10197162129779f / 1000.f - robotData.offsetAcc[0]); // m/s^2
-	robotData.sensors.acc.linAcc[1] = LagElementPT1Process(&lagAccel[0],accel_xyz[1] * 0.061f / 0.10197162129779f / 1000.f - robotData.offsetAcc[1]); // m/s^2
+	robotData.sensors.acc.linAcc[0] = LagElementPT1Process(&lagAccel[1], accel_xyz[1] * 0.061f / 0.10197162129779f / 1000.f - robotData.offsetAcc[1]); // m/s^2
+	robotData.sensors.acc.linAcc[1] = LagElementPT1Process(&lagAccel[0],accel_xyz[0] * 0.061f / 0.10197162129779f / 1000.f - robotData.offsetAcc[0]); // m/s^2
 	robotData.sensors.acc.linAcc[2] = accel_xyz[2] * 0.061f / 0.10197162129779f / 1000.f + robotData.offsetAcc[2]; // m/s^2
 
 	BSP_GYRO_GetXYZ(gyro_xyz);
@@ -719,7 +738,8 @@ void estimateState()
 
 	RobotMathMotorVelToLocalVel(robotData.wheelSpeed, robotData.sensors.encoder.localVel); // wheel speed in rpm, converted to m/s
 
-	FusionEKFUpdate(&robotData.sensors, &robotData.state);
+//	FusionEKFUpdate(&robotData.sensors, &robotData.state);
+	FusionEKFUpdate_encoder_vision(&robotData.sensors, &robotData.state);
 }
 
 void RobotMathMotorVelToLocalVel(const int16_t* pMotor, float* pLocal)
