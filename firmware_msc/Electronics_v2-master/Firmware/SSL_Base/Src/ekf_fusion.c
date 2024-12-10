@@ -615,11 +615,12 @@ void FusionEKFUpdate_encoder_imu(const RobotSensors* pSensors, RobotState* pStat
 
 	stateNow.vel[0] = pSensors->encoder.localVel[0]; // m/s
 	stateNow.vel[1] = pSensors->encoder.localVel[1]; // m/s
-	stateNow.vel[2] = pSensors->encoder.localVel[2]; // rad/s
+//	stateNow.vel[2] = pSensors->encoder.localVel[2]; // rad/s
+	stateNow.vel[2] = pSensors->gyr.rotVel[2] * M_PI / 180.0;
 
 	stateNow.accGyr[0] = pSensors->acc.linAcc[0]; // m/s^2
 	stateNow.accGyr[1] = pSensors->acc.linAcc[1]; // m/s^2
-	stateNow.accGyr[2] = pSensors->gyr.rotVel[2] * M_PI / 180; // convert º/s to rad/s
+	stateNow.accGyr[2] = pSensors->gyr.rotVel[2] * M_PI / 180.0; // convert º/s to rad/s
 
 	if(fusionEKF.first_vision_meas == true)
 	{
@@ -628,7 +629,7 @@ void FusionEKFUpdate_encoder_imu(const RobotSensors* pSensors, RobotState* pStat
 		fusionEKF.first_vision_meas = false;
 	}
 
-	if(fusionEKF.predict_now == false) // see if vision is available AND if the vision sample is valid
+	if(fusionEKF.predict_now == false)
 	{
 		Vector2fTurnLocal2Global(pState->pos[2], stateNow.accGyr[0], stateNow.accGyr[1], accelGlobal, accelGlobal+1);
 		Vector2fTurnLocal2Global(pState->pos[2], fusionEKF.kf.x.pData[3], fusionEKF.kf.x.pData[4], velGlobal, velGlobal+1);
@@ -636,8 +637,8 @@ void FusionEKFUpdate_encoder_imu(const RobotSensors* pSensors, RobotState* pStat
 		update_pose[0] = fusionEKF.kf.x.pData[0] + velGlobal[0] * dt + accelGlobal[0]*dt*dt*0.5f; // X position calculated using accel in the update
 		update_pose[1] = fusionEKF.kf.x.pData[1] + velGlobal[1] * dt + accelGlobal[1]*dt*dt*0.5f; // Y position calculated using accel in the update
 		update_pose[2] = fusionEKF.kf.x.pData[2] + stateNow.accGyr[2] * dt; // theta position calculated using gyro in the update
-		update_pose[3] = fusionEKF.kf.x.pData[3] + stateNow.accGyr[0]; // X local Velocity calculated using accel in the update
-		update_pose[4] = fusionEKF.kf.x.pData[4] + stateNow.accGyr[1]; // Y local Velocity calculated using accel in the update
+		update_pose[3] = fusionEKF.kf.x.pData[3] + stateNow.accGyr[0] * dt; // X local Velocity calculated using accel in the update
+		update_pose[4] = fusionEKF.kf.x.pData[4] + stateNow.accGyr[1] * dt; // Y local Velocity calculated using accel in the update
 
 		memcpy(fusionEKF.kf.z.pData, update_pose, sizeof(float)*5); // transfer the data from the pose updated to the Z matrix
 		KFUpdate(&fusionEKF.kf); // update state
@@ -746,21 +747,28 @@ static void loadNoiseCovariancesFromConfig()
 		MAT_ELEMENT(fusionEKF.kf.Ez, 0, 0) = fusionEKF.pConfig->visNoiseXY*fusionEKF.pConfig->visNoiseXY;
 		MAT_ELEMENT(fusionEKF.kf.Ez, 1, 1) = fusionEKF.pConfig->visNoiseXY*fusionEKF.pConfig->visNoiseXY;
 		MAT_ELEMENT(fusionEKF.kf.Ez, 2, 2) = fusionEKF.pConfig->visNoiseW *fusionEKF.pConfig->visNoiseW;
+		MAT_ELEMENT(fusionEKF.kf.Ez, 3, 3) = fusionEKF.pConfig->visNoiseVel *fusionEKF.pConfig->visNoiseVel;
+		MAT_ELEMENT(fusionEKF.kf.Ez, 4, 4) = fusionEKF.pConfig->visNoiseVel *fusionEKF.pConfig->visNoiseVel;
 	}
 }
 
 static void initEKF()
 {
-	KFInit(&fusionEKF.kf, 5, 3, 3, fusionEKF.ekfData);
+//	KFInit(&fusionEKF.kf, 5, 3, 3, fusionEKF.ekfData);
+	KFInit(&fusionEKF.kf, 5, 3, 5, fusionEKF.ekfData);
 	arm_mat_scale_f32(&fusionEKF.kf.Sigma, 0.001f, &fusionEKF.kf.Sigma);
 //	fusionEKF.kf.pState = &ekfStateFunc;
 	fusionEKF.kf.pState = &ekfStateFunc_encoder;
 //	fusionEKF.kf.pStateJacobian = &ekfStateJacobianFunc;
 	fusionEKF.kf.pStateJacobian = &ekfStateJacobianFunc_encoder;
-	fusionEKF.kf.pMeas = &ekfMeasFuncPoseState;
-	fusionEKF.kf.pMeasJacobian = &ekfMeasJacobianFuncPoseState;
+//	fusionEKF.kf.pMeas = &ekfMeasFuncPoseState;
+	fusionEKF.kf.pMeas = &ekfMeasFuncFullState;
+//	fusionEKF.kf.pMeasJacobian = &ekfMeasJacobianFuncPoseState;
+	fusionEKF.kf.pMeasJacobian = &ekfMeasJacobianFuncFullState;
 
 	fusionEKF.first_vision_meas = true;
+
+	fusionEKF.predict_now = true;
 
 	fusionEKF.update_counter = 0;
 	fusionEKF.predict_counter = 0;

@@ -85,11 +85,12 @@ void RobotMathMotorVelToLocalVel(const int16_t* pMotor, float* pLocal);
 LagElementPT1 lagAccel[2];
 
 static FusionEKFConfig configFusionKF = {
-	.posNoiseXY = 0.001f,
-	.posNoiseW = 0.001f,
-	.velNoiseXY = 0.005f,
-	.visNoiseXY = 0.05f,
-	.visNoiseW = 0.1f,
+	.posNoiseXY = 0.01f,
+	.posNoiseW = 0.01f,
+	.velNoiseXY = 0.05f,
+	.visNoiseXY = 0.1f,
+	.visNoiseW = 0.01f,
+	.visNoiseVel = 0.1f,
 //	.visNoiseXY = 0.001f,
 //	.visNoiseW = 0.01f,
 	.outlierMaxVelXY = 3.0f,
@@ -172,7 +173,7 @@ void setup()
     HAL_GPIO_WritePin(RIGHT_KICK_GPIO_Port, RIGHT_KICK_Pin, GPIO_PIN_RESET);
     HAL_GPIO_WritePin(LEFT_KICK_GPIO_Port, LEFT_KICK_Pin, GPIO_PIN_RESET);
 
-    initialise_monitor_handles();
+//    initialise_monitor_handles();
 
     HAL_Delay(500);
 
@@ -299,25 +300,25 @@ void calibrateSensors()
 			gyro_y_validation += (Gyro_xyz[1] / 1000.0) - robotData.offsetGyr[1];
 			gyro_z_validation += (Gyro_xyz[2] / 1000.0) - robotData.offsetGyr[2];
 		}
-
-		printf("Gyro X: ");
-		printf("%.6f", gyro_x_validation / validation_samples);
-		printf("\n");
-		printf("Gyro Y: ");
-		printf("%.6f", gyro_y_validation / validation_samples);
-		printf("\n");
-		printf("Gyro Z: ");
-		printf("%.6f", gyro_z_validation / validation_samples);
-		printf("\n");
-		printf("Accel X: ");
-		printf("%.6f", accel_x_validation / validation_samples);
-		printf("\n");
-		printf("Accel Y: ");
-		printf("%.6f", accel_y_validation / validation_samples);
-		printf("\n");
-		printf("Accel Z: ");
-		printf("%.6f", accel_z_validation / validation_samples);
-		printf("\n");
+//
+//		printf("Gyro X: ");
+//		printf("%.6f", gyro_x_validation / validation_samples);
+//		printf("\n");
+//		printf("Gyro Y: ");
+//		printf("%.6f", gyro_y_validation / validation_samples);
+//		printf("\n");
+//		printf("Gyro Z: ");
+//		printf("%.6f", gyro_z_validation / validation_samples);
+//		printf("\n");
+//		printf("Accel X: ");
+//		printf("%.6f", accel_x_validation / validation_samples);
+//		printf("\n");
+//		printf("Accel Y: ");
+//		printf("%.6f", accel_y_validation / validation_samples);
+//		printf("\n");
+//		printf("Accel Z: ");
+//		printf("%.6f", accel_z_validation / validation_samples);
+//		printf("\n");
 
 		calibrated = true;
 
@@ -739,7 +740,8 @@ void estimateState()
 	RobotMathMotorVelToLocalVel(robotData.wheelSpeed, robotData.sensors.encoder.localVel); // wheel speed in rpm, converted to m/s
 
 //	FusionEKFUpdate(&robotData.sensors, &robotData.state);
-	FusionEKFUpdate_encoder_vision(&robotData.sensors, &robotData.state);
+//	FusionEKFUpdate_encoder_vision(&robotData.sensors, &robotData.state);
+	FusionEKFUpdate_encoder_imu(&robotData.sensors, &robotData.state);
 }
 
 void RobotMathMotorVelToLocalVel(const int16_t* pMotor, float* pLocal)

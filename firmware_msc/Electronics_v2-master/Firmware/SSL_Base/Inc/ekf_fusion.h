@@ -22,6 +22,7 @@ typedef struct __attribute__ ((packed)) _FusionEKFConfig
 
 	float visNoiseXY;
 	float visNoiseW;
+	float visNoiseVel;
 
 	float outlierMaxVelXY;
 	float outlierMaxVelW;
