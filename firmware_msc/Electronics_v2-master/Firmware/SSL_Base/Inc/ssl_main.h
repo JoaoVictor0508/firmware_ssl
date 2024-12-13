@@ -120,8 +120,8 @@ typedef struct _RobotState
 	float Sigma[5][5];
 	float kalman_gain[5][3];
 
-	uint32_t posUpdated;
-	uint32_t velUpdated;
+	float global_vel[2];
+	float global_accel[2];
 } RobotState;
 
 typedef struct RobotData_t
@@ -227,7 +227,7 @@ static RobotData_t robotData = {.battery = 0,
                                 .debugKick = false,
                                 .pose = {.x = 0, .y = 0, .theta = 0},
                                 .rollerEnable = false,
-								.specs.physical.wheelRadius_m = 54*1e-3,
+								.specs.physical.wheelRadius_m = 27.0*1e-3,
 								.specs.driveTrain.motor2WheelRatio = 20.0 / 60.0,
 								.specs.driveTrain.wheel2MotorRatio = 60.0 / 20.0,
 								.specs.physical.frontAngle_deg = 33.0,

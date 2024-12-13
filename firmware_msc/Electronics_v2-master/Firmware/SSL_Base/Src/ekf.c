@@ -203,7 +203,7 @@ void KFPredict(KF* pKF, float dt)
 
 void KFUpdate(KF* pKF)
 {
-	HAL_GPIO_WritePin(GREEN_LED_GPIO_Port, GREEN_LED_Pin, GPIO_PIN_SET);
+//	HAL_GPIO_WritePin(GREEN_LED_GPIO_Port, GREEN_LED_Pin, GPIO_PIN_SET);
 
 	// >>> H = jacobian(z,x)
 	(*pKF->pMeasJacobian)(&pKF->x, &pKF->C);
@@ -254,6 +254,9 @@ void KFUpdate(KF* pKF)
 			invStat = arm_mat_inverse_f32(&pKF->tmp3, &pKF->tmp1);
 			break;
 	}
+
+	if(invStat != ARM_MATH_SUCCESS)
+		HAL_GPIO_WritePin(GREEN_LED_GPIO_Port, GREEN_LED_Pin, GPIO_PIN_SET);
 
 	// K = tmp2*tmp1 (f x h)
 	arm_mat_mult_f32(&pKF->tmp2, &pKF->tmp1, &pKF->K);
