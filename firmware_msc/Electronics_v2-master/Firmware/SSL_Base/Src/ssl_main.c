@@ -85,11 +85,11 @@ void RobotMathMotorVelToLocalVel(const int16_t* pMotor, float* pLocal);
 LagElementPT1 lagAccel[2];
 
 static FusionEKFConfig configFusionKF = {
-	.posNoiseXY = 0.00001f,
-	.posNoiseW = 0.00001f,
-	.velNoiseXY = 0.00005f,
-	.visNoiseXY = 0.00001f,
-	.visNoiseW = 0.00001f,
+	.posNoiseXY = 0.001f,
+	.posNoiseW = 0.001f,
+	.velNoiseXY = 0.005f,
+	.visNoiseXY = 0.001f,
+	.visNoiseW = 0.01f,
 	.visNoiseVel = 0.00001f,
 //	.visNoiseXY = 0.001f,
 //	.visNoiseW = 0.01f,
@@ -346,11 +346,6 @@ void updateRobotMath()
 	robotData.math.theta_rad[1] = M_PI+beta_rad;
 	robotData.math.theta_rad[2] = 2*M_PI-beta_rad;
 	robotData.math.theta_rad[3] = alpha_rad;
-//
-//	robotData.math.theta_rad[0] = alpha_rad;
-//	robotData.math.theta_rad[1] = PI-alpha_rad;
-//	robotData.math.theta_rad[2] = PI+beta_rad;
-//	robotData.math.theta_rad[3] = 2*PI-beta_rad;
 
 	for(uint8_t i = 0; i < 4; i++)
 	{
@@ -555,14 +550,14 @@ void updateDebugInfo()
 //    convertDebugSpeed(&debugData.count4High, &debugData.count4Low,
 //                      robotData.encoderCount[MOTOR_4]);
 
-//    convertDebugSpeed(&debugData.posXHigh, &debugData.posXLow,
-//    					(int)(robotData.state.pos[0]*1000.0));
-//    convertDebugSpeed(&debugData.posYHigh, &debugData.posYLow,
-//    					(int)(robotData.state.pos[1]*1000.0));
     convertDebugSpeed(&debugData.posXHigh, &debugData.posXLow,
-    					(int)(robotData.sensors.acc.linAcc[0]*1000.0));
+    					(int)(robotData.state.pos[0]*1000.0));
     convertDebugSpeed(&debugData.posYHigh, &debugData.posYLow,
-    					(int)(robotData.sensors.acc.linAcc[1]*1000.0));
+    					(int)(robotData.state.pos[1]*1000.0));
+//    convertDebugSpeed(&debugData.posXHigh, &debugData.posXLow,
+//    					(int)(robotData.sensors.acc.linAcc[0]*1000.0));
+//    convertDebugSpeed(&debugData.posYHigh, &debugData.posYLow,
+//    					(int)(robotData.sensors.acc.linAcc[1]*1000.0));
     convertDebugSpeed(&debugData.posThetaHigh, &debugData.posThetaLow,
     					(int)(robotData.state.pos[2]*1000.0));
     convertDebugSpeed(&debugData.velXHigh, &debugData.velXLow,
@@ -748,9 +743,9 @@ void estimateState()
 
 	RobotMathMotorVelToLocalVel(robotData.wheelSpeed, robotData.sensors.encoder.localVel); // wheel speed in rpm, converted to m/s
 
-//	FusionEKFUpdate(&robotData.sensors, &robotData.state);
+	FusionEKFUpdate(&robotData.sensors, &robotData.state);
 //	FusionEKFUpdate_encoder_vision(&robotData.sensors, &robotData.state);
-	FusionEKFUpdate_encoder_imu(&robotData.sensors, &robotData.state);
+//	FusionEKFUpdate_encoder_imu(&robotData.sensors, &robotData.state);
 //	FusionEKFUpdate_imu_encoder(&robotData.sensors, &robotData.state);
 }
 
@@ -760,10 +755,21 @@ void RobotMathMotorVelToLocalVel(const int16_t* pMotor, float* pLocal)
 	arm_matrix_instance_f32 matMot = { 4, 1, motor };
 
 	for(uint8_t i = 0; i < 4; i++)
-		motor[i] *= (robotData.specs.physical.wheelRadius_m * 2.0 * M_PI / 60.0)*CTRL_MOTOR_TO_WHEEL_RATIO;	// value is now speed over ground [m/s]
+		motor[i] *= (robotData.specs.physical.wheelRadius_m * 2.0 * M_PI / 60.0);//*CTRL_MOTOR_TO_WHEEL_RATIO;	// value is now speed over ground [m/s]
 
 	// convert to local velocity
 	arm_matrix_instance_f32 matLocal = {3, 1, pLocal};
+
+	float validation[3][4];
+
+	for(int k = 0; k < 3; k++)
+	{
+		for(int a = 0; a < 4; a++)
+		{
+			validation[k][a] = MAT_ELEMENT(robotData.math.matMotor2XYW, k, a);
+		}
+	}
+
 	arm_mat_mult_f32(&robotData.math.matMotor2XYW, &matMot, &matLocal);
 }
 

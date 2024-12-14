@@ -743,24 +743,24 @@ static void loadNoiseCovariancesFromConfig()
 		MAT_ELEMENT(fusionEKF.kf.Ez, 0, 0) = fusionEKF.pConfig->visNoiseXY *fusionEKF.pConfig->visNoiseXY;
 		MAT_ELEMENT(fusionEKF.kf.Ez, 1, 1) = fusionEKF.pConfig->visNoiseXY *fusionEKF.pConfig->visNoiseXY;
 		MAT_ELEMENT(fusionEKF.kf.Ez, 2, 2) = fusionEKF.pConfig->visNoiseW  *fusionEKF.pConfig->visNoiseW;
-		MAT_ELEMENT(fusionEKF.kf.Ez, 3, 3) = fusionEKF.pConfig->visNoiseVel*fusionEKF.pConfig->visNoiseVel;
-		MAT_ELEMENT(fusionEKF.kf.Ez, 4, 4) = fusionEKF.pConfig->visNoiseVel*fusionEKF.pConfig->visNoiseVel;
+//		MAT_ELEMENT(fusionEKF.kf.Ez, 3, 3) = fusionEKF.pConfig->visNoiseVel*fusionEKF.pConfig->visNoiseVel;
+//		MAT_ELEMENT(fusionEKF.kf.Ez, 4, 4) = fusionEKF.pConfig->visNoiseVel*fusionEKF.pConfig->visNoiseVel;
 	}
 }
 
 static void initEKF()
 {
 //	KFInit(&fusionEKF.kf, 5, 3, 3, fusionEKF.ekfData);
-	KFInit(&fusionEKF.kf, 5, 3, 5, fusionEKF.ekfData);
+	KFInit(&fusionEKF.kf, 5, 3, 3, fusionEKF.ekfData);
 //	arm_mat_scale_f32(&fusionEKF.kf.Sigma, 0.001f, &fusionEKF.kf.Sigma);
-//	fusionEKF.kf.pState = &ekfStateFunc;
-	fusionEKF.kf.pState = &ekfStateFunc_encoder;
-//	fusionEKF.kf.pStateJacobian = &ekfStateJacobianFunc;
-	fusionEKF.kf.pStateJacobian = &ekfStateJacobianFunc_encoder;
-//	fusionEKF.kf.pMeas = &ekfMeasFuncPoseState;
-	fusionEKF.kf.pMeas = &ekfMeasFuncFullState;
-//	fusionEKF.kf.pMeasJacobian = &ekfMeasJacobianFuncPoseState;
-	fusionEKF.kf.pMeasJacobian = &ekfMeasJacobianFuncFullState;
+	fusionEKF.kf.pState = &ekfStateFunc;
+//	fusionEKF.kf.pState = &ekfStateFunc_encoder;
+	fusionEKF.kf.pStateJacobian = &ekfStateJacobianFunc;
+//	fusionEKF.kf.pStateJacobian = &ekfStateJacobianFunc_encoder;
+	fusionEKF.kf.pMeas = &ekfMeasFuncPoseState;
+//	fusionEKF.kf.pMeas = &ekfMeasFuncFullState;
+	fusionEKF.kf.pMeasJacobian = &ekfMeasJacobianFuncPoseState;
+//	fusionEKF.kf.pMeasJacobian = &ekfMeasJacobianFuncFullState;
 
 	fusionEKF.first_vision_meas = true;
 
