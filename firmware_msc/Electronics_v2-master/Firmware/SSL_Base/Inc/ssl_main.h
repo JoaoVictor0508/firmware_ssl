@@ -104,6 +104,7 @@ typedef struct _PhysicalParams
 	float dribblerWidth_m; // width the ball can move while at the dribbler
 	float centerOfGravity_m[3]; // measured from geometric robot center point on ground
 	float massDistributionZ; // Factor between 0.5 (mass evenly distributed/solid cylinder) and 1.0 (all mass at outer radius/hollow shell), used for inertia calculation
+	float gyroDistToCenter_m; //Distance of the gyroscope (U7 element in the border schematic) to the robot center to compensate the angular velocityr
 } PhysicalParams;
 
 typedef struct _RobotSpecs
@@ -228,6 +229,7 @@ static RobotData_t robotData = {.battery = 0,
                                 .pose = {.x = 0, .y = 0, .theta = 0},
                                 .rollerEnable = false,
 								.specs.physical.wheelRadius_m = 27.0*1e-3,
+								.specs.physical.gyroDistToCenter_m = 16*1e-3,
 								.specs.driveTrain.motor2WheelRatio = 20.0 / 60.0,
 								.specs.driveTrain.wheel2MotorRatio = 60.0 / 20.0,
 								.specs.physical.frontAngle_deg = 33.0,

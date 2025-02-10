@@ -83,12 +83,13 @@ void updateRobotMath();
 void RobotMathMotorVelToLocalVel(const int16_t* pMotor, float* pLocal);
 
 LagElementPT1 lagAccel[2];
+LagElementPT1 lagGyro[1];
 
 static FusionEKFConfig configFusionKF = {
-	.posNoiseXY = 0.001f,
-	.posNoiseW = 0.001f,
-	.velNoiseXY = 0.005f,
-	.visNoiseXY = 0.001f,
+	.posNoiseXY = 0.0001f,
+	.posNoiseW = 0.0001f,
+	.velNoiseXY = 0.0005f,
+	.visNoiseXY = 0.01f,
 	.visNoiseW = 0.01f,
 	.visNoiseVel = 0.00001f,
 //	.visNoiseXY = 0.001f,
@@ -189,6 +190,7 @@ void setup()
 
 	LagElementPT1Init(&lagAccel[0], 1.0f, 0.01f, CTRL_DELTA_T);
 	LagElementPT1Init(&lagAccel[1], 1.0f, 0.01f, CTRL_DELTA_T);
+	LagElementPT1Init(&lagGyro[0], 1.0f, 0.01f, CTRL_DELTA_T);
 
     nRF24_RadioConfig();
     showRobotID();
@@ -353,6 +355,16 @@ void updateRobotMath()
 		MAT_ELEMENT(robotData.math.matXYW2Motor, i, 0) = -sinf(robotData.math.theta_rad[i]);
 		MAT_ELEMENT(robotData.math.matXYW2Motor, i, 1) = cosf(robotData.math.theta_rad[i]);
 		MAT_ELEMENT(robotData.math.matXYW2Motor, i, 2) = botRadius_m;
+	}
+
+	float validation[4][3];
+
+	for(int k = 0; k < 4; k++)
+	{
+		for(int a = 0; a < 3; a++)
+		{
+			validation[k][a] = MAT_ELEMENT(robotData.math.matXYW2Motor, k, a);
+		}
 	}
 
 	arm_mat_pinv(&robotData.math.matXYW2Motor, &robotData.math.matMotor2XYW);
@@ -536,10 +548,15 @@ void updateDebugInfo()
                       robotData.wheelSpeed[MOTOR_1]);
     convertDebugSpeed(&debugData.wheelSpeed2High, &debugData.wheelSpeed2Low,
                       robotData.wheelSpeed[MOTOR_2]);
+//    convertDebugSpeed(&debugData.wheelSpeed3High, &debugData.wheelSpeed3Low,
+//                      robotData.wheelSpeed[MOTOR_3]);
+//    convertDebugSpeed(&debugData.wheelSpeed4High, &debugData.wheelSpeed4Low,
+//                      robotData.wheelSpeed[MOTOR_4]);
+
     convertDebugSpeed(&debugData.wheelSpeed3High, &debugData.wheelSpeed3Low,
-                      robotData.wheelSpeed[MOTOR_3]);
+    					(int)(robotData.sensors.acc.linAcc[0]*1000.0));
     convertDebugSpeed(&debugData.wheelSpeed4High, &debugData.wheelSpeed4Low,
-                      robotData.wheelSpeed[MOTOR_4]);
+    					(int)(robotData.sensors.acc.linAcc[1]*1000.0));
 
 //    convertDebugSpeed(&debugData.count1High, &debugData.count1Low,
 //                      robotData.encoderCount[MOTOR_1]);
@@ -554,16 +571,24 @@ void updateDebugInfo()
     					(int)(robotData.state.pos[0]*1000.0));
     convertDebugSpeed(&debugData.posYHigh, &debugData.posYLow,
     					(int)(robotData.state.pos[1]*1000.0));
+
 //    convertDebugSpeed(&debugData.posXHigh, &debugData.posXLow,
 //    					(int)(robotData.sensors.acc.linAcc[0]*1000.0));
 //    convertDebugSpeed(&debugData.posYHigh, &debugData.posYLow,
 //    					(int)(robotData.sensors.acc.linAcc[1]*1000.0));
+
     convertDebugSpeed(&debugData.posThetaHigh, &debugData.posThetaLow,
-    					(int)(robotData.state.pos[2]*1000.0));
-    convertDebugSpeed(&debugData.velXHigh, &debugData.velXLow,
-					  	(int)(robotData.state.vel[0]*1000.0));
-    convertDebugSpeed(&debugData.velYHigh, &debugData.velYLow,
-    					(int)(robotData.state.vel[1]*1000.0));
+    					(int)(robotData.state.pos[2]));
+
+//    convertDebugSpeed(&debugData.velXHigh, &debugData.velXLow,
+//					  	(int)(robotData.state.vel[0]*1000.0));
+//    convertDebugSpeed(&debugData.velYHigh, &debugData.velYLow,
+//    					(int)(robotData.state.vel[1]*1000.0));
+
+	convertDebugSpeed(&debugData.velXHigh, &debugData.velXLow,
+						(int)(robotData.sensors.gyr.rotVel[2])); //debug da velocidade de rotação com giroscópio
+	convertDebugSpeed(&debugData.velYHigh, &debugData.velYLow,
+						(int)(robotData.sensors.encoder.localVel[2] * 180.0 / M_PI)); //debug da velocidade de rotação com encoder
     debugData.capacitorVoltage = robotData.capacitorVoltage;
     debugData.packetFrequency = radioData.packetFrequency;
 }
@@ -731,7 +756,7 @@ void estimateState()
 	BSP_GYRO_GetXYZ(gyro_xyz);
 	robotData.sensors.gyr.rotVel[0] = (gyro_xyz[0] / 1000) - robotData.offsetGyr[0]; // º/s
 	robotData.sensors.gyr.rotVel[1] = (gyro_xyz[1] / 1000) - robotData.offsetGyr[1]; // º/s
-	robotData.sensors.gyr.rotVel[2] = (gyro_xyz[2] / 1000) - robotData.offsetGyr[2]; // º/s
+	robotData.sensors.gyr.rotVel[2] = LagElementPT1Process(&lagGyro[0],((gyro_xyz[2] / 1000) - robotData.offsetGyr[2]) / (1 + (robotData.specs.physical.gyroDistToCenter_m / robotData.specs.physical.botRadius_m))); // º/s
 
 	robotData.sensors.vision.pos[0] = robotData.pose.x / 1000.0; // m
 	robotData.sensors.vision.pos[1] = robotData.pose.y / 1000.0; // m
@@ -743,9 +768,9 @@ void estimateState()
 
 	RobotMathMotorVelToLocalVel(robotData.wheelSpeed, robotData.sensors.encoder.localVel); // wheel speed in rpm, converted to m/s
 
-	FusionEKFUpdate(&robotData.sensors, &robotData.state);
+//	FusionEKFUpdate(&robotData.sensors, &robotData.state);
 //	FusionEKFUpdate_encoder_vision(&robotData.sensors, &robotData.state);
-//	FusionEKFUpdate_encoder_imu(&robotData.sensors, &robotData.state);
+	FusionEKFUpdate_encoder_imu(&robotData.sensors, &robotData.state);
 //	FusionEKFUpdate_imu_encoder(&robotData.sensors, &robotData.state);
 }
 
