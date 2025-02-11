@@ -196,16 +196,6 @@ typedef union DebugData_t {
         uint8_t velYLow;          // [21]
         uint8_t capacitorVoltage;// [22]
         uint8_t packetFrequency; // [23]
-//        uint8_t posXHigh;        // [22]
-//        uint8_t posXLow;         // [23]
-        uint8_t posYHigh1;        // [24]
-        uint8_t posYLow1;         // [25]
-        uint8_t posThetaHigh1;    // [26]
-        uint8_t posThetaLow1;     // [27]
-        uint8_t velXHigh1;          // [28]
-        uint8_t velXLow1;          // [29]
-        uint8_t velYHigh1;          // [30]
-        uint8_t velYLow1;          // [31]
     };
     uint8_t data[DEBUG_SIZE];
 } DebugData_t;

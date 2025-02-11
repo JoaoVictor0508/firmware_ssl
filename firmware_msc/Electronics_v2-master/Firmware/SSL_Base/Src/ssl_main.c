@@ -766,7 +766,13 @@ void estimateState()
 	robotData.sensors.theoreticalVel.theoVel[1] = receivedPacket.velocityY * MAX_VELOCITY / 100.0; // m/s
 	robotData.sensors.theoreticalVel.theoVel[2] = receivedPacket.velocityW * MAX_ROTATION / 100.0; // rad/s
 
-	RobotMathMotorVelToLocalVel(robotData.wheelSpeed, robotData.sensors.encoder.localVel); // wheel speed in rpm, converted to m/s
+	float encoderVel[3];
+
+	RobotMathMotorVelToLocalVel(robotData.wheelSpeed, encoderVel); // wheel speed in rpm, converted to m/s
+
+	robotData.sensors.encoder.localVel[0] = -encoderVel[1];
+	robotData.sensors.encoder.localVel[1] = encoderVel[0];
+	robotData.sensors.encoder.localVel[2] = encoderVel[2];
 
 //	FusionEKFUpdate(&robotData.sensors, &robotData.state);
 //	FusionEKFUpdate_encoder_vision(&robotData.sensors, &robotData.state);
