@@ -29,7 +29,12 @@ void Delay_us(uint32_t _delay)
 
 void nRF24_RadioConfig()
 {
-    const uint8_t PC_ADDRESS = 0x0F;
+//    const uint8_t PC_ADDRESS = 0x0F;
+//    const uint8_t PC_ADDRESS = 123;
+//    const uint8_t PC_ADDRESS = 0x10; // "12345"
+
+	const uint8_t PC_ADDRESS[5] = {0x31, 0x32, 0x33, 0x34, 0x35};
+
 
     // nRF24_RX_OFF();
     // nRF24_CSN_H();
@@ -62,13 +67,16 @@ void nRF24_RadioConfig()
     // nRF24_ClearIRQFlags();
     nRF24_RX_OFF();
     uint8_t config = nRF24_ReadReg(nRF24_REG_CONFIG);
+
     nRF24_WriteReg(nRF24_REG_CONFIG,
                    config | nRF24_PWR_UP | nRF24_FLAG_TX_DS | nRF24_MASK_CRC,
                    true);
+    Delay_us(50);
     nRF24_WriteReg(nRF24_REG_RX_PW_P0, RADIO_PACKET_SIZE, true);
     nRF24_WriteReg(nRF24_REG_EN_AA, 0x0, true);
     nRF24_WriteReg(nRF24_REG_SETUP_RETR, 0x0, true);
-    nRF24_WriteReg(nRF24_REG_TX_ADDR, PC_ADDRESS, true);
+//    nRF24_WriteReg(nRF24_REG_TX_ADDR, PC_ADDRESS, true);
+    nRF24_WriteMultiReg(nRF24_REG_TX_ADDR, PC_ADDRESS, 5);
     nRF24_WriteReg(nRF24_REG_RX_ADDR_P0, radioData.robotID, true);
     nRF24_RX_ON();
 
@@ -76,10 +84,25 @@ void nRF24_RadioConfig()
 
     nRF24_SetRFChannel(radioData.rfRXChannel);
 
+    nRF24_SetDataRate(nRF24_DR_2Mbps);
+
     radioData.dataReceived = true; // Deve ser true para o rádio inicializar
     radioData.bytesReceived = 0;
     radioData.lastPacketTimestamp = HAL_GetTick();
     radioData.packetFrequency = 0;
+}
+
+void nRF24_WriteMultiReg(uint8_t reg, const uint8_t* data, uint8_t length)
+{
+    nRF24_CSN_L();  // Seleciona o rádio
+    nRF24_LL_RW(nRF24_CMD_W_REGISTER | (reg & nRF24_MASK_REG_MAP)); // Escreve no registrador
+
+    for (uint8_t i = 0; i < length; i++)
+    {
+        nRF24_LL_RW(data[i]);  // Escreve os bytes do endereço
+    }
+
+    nRF24_CSN_H();  // Desseleciona o rádio
 }
 
 void nRF24_Transmit(uint8_t* _input)
@@ -87,10 +110,11 @@ void nRF24_Transmit(uint8_t* _input)
     int n = 0;
     unsigned char checksum = 0;
 
-    nRF24_SetRFChannel(radioData.rfTXChannel);
+//    nRF24_SetRFChannel(radioData.rfTXChannel);
+    nRF24_SetRFChannel(75);
     nRF24_RX_OFF();
     nRF24_SetOperationalMode(nRF24_MODE_TX);
-    nRF24_RX_ON();
+//    nRF24_RX_ON();
     Delay_us(20 + 130);
 
     // Preamble

@@ -168,34 +168,69 @@ typedef struct RobotData_t
 
 } RobotData_t;
 
+//typedef union DebugData_t {
+//    struct
+//    {
+//        //      informação ---- [indice]
+//        uint8_t kickSensor;      // [0]
+//        uint8_t robotID;         // [1]
+//        uint8_t battery;         // [2]
+//        uint8_t sensorType;      // [3]
+//        uint8_t wheelSpeed1High; // [4]
+//        uint8_t wheelSpeed1Low;  // [5]
+//        uint8_t wheelSpeed2High; // [6]
+//        uint8_t wheelSpeed2Low;  // [7]
+//        uint8_t wheelSpeed3High; // [8]
+//        uint8_t wheelSpeed3Low;  // [9]
+//        uint8_t wheelSpeed4High; // [10]
+//        uint8_t wheelSpeed4Low;  // [11]
+//        uint8_t posXHigh;      // [12]
+//        uint8_t posXLow;       // [13]
+//        uint8_t posYHigh;      // [14]
+//        uint8_t posYLow;       // [15]
+//        uint8_t posThetaHigh;      // [16]
+//        uint8_t posThetaLow;       // [17]
+//        uint8_t velXHigh;      // [18]
+//        uint8_t velXLow;       // [19]
+//        uint8_t velYHigh;          // [20]
+//        uint8_t velYLow;          // [21]
+//        uint8_t capacitorVoltage;// [22]
+//        uint8_t packetFrequency; // [23]
+//    };
+//    uint8_t data[DEBUG_SIZE];
+//} DebugData_t;
+
 typedef union DebugData_t {
     struct
     {
         //      informação ---- [indice]
-        uint8_t kickSensor;      // [0]
-        uint8_t robotID;         // [1]
-        uint8_t battery;         // [2]
-        uint8_t sensorType;      // [3]
-        uint8_t wheelSpeed1High; // [4]
-        uint8_t wheelSpeed1Low;  // [5]
-        uint8_t wheelSpeed2High; // [6]
-        uint8_t wheelSpeed2Low;  // [7]
-        uint8_t wheelSpeed3High; // [8]
-        uint8_t wheelSpeed3Low;  // [9]
-        uint8_t wheelSpeed4High; // [10]
-        uint8_t wheelSpeed4Low;  // [11]
-        uint8_t posXHigh;      // [12]
-        uint8_t posXLow;       // [13]
-        uint8_t posYHigh;      // [14]
-        uint8_t posYLow;       // [15]
-        uint8_t posThetaHigh;      // [16]
-        uint8_t posThetaLow;       // [17]
-        uint8_t velXHigh;      // [18]
-        uint8_t velXLow;       // [19]
-        uint8_t velYHigh;          // [20]
-        uint8_t velYLow;          // [21]
-        uint8_t capacitorVoltage;// [22]
-        uint8_t packetFrequency; // [23]
+        uint8_t posVisionXHigh;   	// [0]
+        uint8_t posVisionXLow;   	// [1]
+        uint8_t posVisionYHigh;  	// [2]
+        uint8_t posVisionYLow;   	// [3]
+        uint8_t posVisionThetaHigh; // [4]
+        uint8_t posVisionThetaLow;  // [5]
+        uint8_t posXHigh;      		// [6]
+        uint8_t posXLow;       		// [7]
+        uint8_t posYHigh;      		// [8]
+        uint8_t posYLow;       		// [9]
+        uint8_t posThetaHigh;       // [10]
+        uint8_t posThetaLow;    	// [11]
+        uint8_t velXHigh;       	// [12]
+        uint8_t velXLow;        	// [13]
+        uint8_t velYHigh;       	// [14]
+        uint8_t velYLow;        	// [15]
+        uint8_t accelXHigh;			// [16]
+        uint8_t accelXLow;			// [17]
+        uint8_t accelYHigh;			// [18]
+		uint8_t accelYLow;			// [19]
+		uint8_t data20;				// [20]
+		uint8_t data21;				// [21]
+		uint8_t data22;				// [22]
+		uint8_t data23;				// [23]
+		uint8_t data24;				// [24]
+		uint8_t data25;				// [25]
+
     };
     uint8_t data[DEBUG_SIZE];
 } DebugData_t;

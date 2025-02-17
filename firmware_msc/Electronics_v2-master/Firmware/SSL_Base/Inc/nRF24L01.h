@@ -394,6 +394,7 @@ uint8_t nRF24_Check(void);
 
 uint8_t nRF24_ReadReg(uint8_t reg);
 void nRF24_WriteReg(uint8_t reg, uint8_t value, bool check);
+void nRF24_WriteMultiReg(uint8_t reg, const uint8_t* buf, uint8_t len);
 
 void nRF24_SetPowerMode(uint8_t mode);
 void nRF24_SetTXInterrupt(uint8_t mode);

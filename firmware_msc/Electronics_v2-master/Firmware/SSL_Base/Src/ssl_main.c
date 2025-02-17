@@ -86,12 +86,12 @@ LagElementPT1 lagAccel[2];
 LagElementPT1 lagGyro[1];
 
 static FusionEKFConfig configFusionKF = {
-	.posNoiseXY = 0.0001f,
-	.posNoiseW = 0.0001f,
-	.velNoiseXY = 0.0005f,
-	.visNoiseXY = 0.01f,
-	.visNoiseW = 0.01f,
-	.visNoiseVel = 0.00001f,
+	.posNoiseXY = 0.1f,
+	.posNoiseW = 0.1f,
+	.velNoiseXY = 0.5f,
+	.visNoiseXY = 0.1f,
+	.visNoiseW = 0.1f,
+	.visNoiseVel = 0.1f,
 //	.visNoiseXY = 0.001f,
 //	.visNoiseW = 0.01f,
 	.outlierMaxVelXY = 3.0f,
@@ -539,58 +539,33 @@ void readBattery()
 
 void updateDebugInfo()
 {
-    debugData.kickSensor = robotData.ballSensor;
-    debugData.robotID = radioData.robotID;
-    debugData.battery = robotData.battery; // 89 ~ 11.95V
-    debugData.sensorType = 0;
-
-    convertDebugSpeed(&debugData.wheelSpeed1High, &debugData.wheelSpeed1Low,
-                      robotData.wheelSpeed[MOTOR_1]);
-    convertDebugSpeed(&debugData.wheelSpeed2High, &debugData.wheelSpeed2Low,
-                      robotData.wheelSpeed[MOTOR_2]);
-//    convertDebugSpeed(&debugData.wheelSpeed3High, &debugData.wheelSpeed3Low,
-//                      robotData.wheelSpeed[MOTOR_3]);
-//    convertDebugSpeed(&debugData.wheelSpeed4High, &debugData.wheelSpeed4Low,
-//                      robotData.wheelSpeed[MOTOR_4]);
-
-    convertDebugSpeed(&debugData.wheelSpeed3High, &debugData.wheelSpeed3Low,
-    					(int)(robotData.sensors.acc.linAcc[0]*1000.0));
-    convertDebugSpeed(&debugData.wheelSpeed4High, &debugData.wheelSpeed4Low,
-    					(int)(robotData.sensors.acc.linAcc[1]*1000.0));
-
-//    convertDebugSpeed(&debugData.count1High, &debugData.count1Low,
-//                      robotData.encoderCount[MOTOR_1]);
-//    convertDebugSpeed(&debugData.count2High, &debugData.count2Low,
-//                      robotData.encoderCount[MOTOR_2]);
-//    convertDebugSpeed(&debugData.count3High, &debugData.count3Low,
-//                      robotData.encoderCount[MOTOR_3]);
-//    convertDebugSpeed(&debugData.count4High, &debugData.count4Low,
-//                      robotData.encoderCount[MOTOR_4]);
+	convertDebugSpeed(&debugData.posVisionXHigh, &debugData.posVisionXLow,
+						(int)(robotData.sensors.vision.pos[0]*1000.0));
+	convertDebugSpeed(&debugData.posVisionYHigh, &debugData.posVisionYLow,
+							(int)(robotData.sensors.vision.pos[1]*1000.0));
+	convertDebugSpeed(&debugData.posVisionThetaHigh, &debugData.posVisionThetaLow,
+							(int)(robotData.sensors.vision.pos[2] * 180.0 / M_PI));
 
     convertDebugSpeed(&debugData.posXHigh, &debugData.posXLow,
     					(int)(robotData.state.pos[0]*1000.0));
     convertDebugSpeed(&debugData.posYHigh, &debugData.posYLow,
     					(int)(robotData.state.pos[1]*1000.0));
-
-//    convertDebugSpeed(&debugData.posXHigh, &debugData.posXLow,
-//    					(int)(robotData.sensors.acc.linAcc[0]*1000.0));
-//    convertDebugSpeed(&debugData.posYHigh, &debugData.posYLow,
-//    					(int)(robotData.sensors.acc.linAcc[1]*1000.0));
-
     convertDebugSpeed(&debugData.posThetaHigh, &debugData.posThetaLow,
     					(int)(robotData.state.pos[2]));
+    convertDebugSpeed(&debugData.velXHigh, &debugData.velXLow,
+					  	(int)(robotData.state.vel[0]*1000.0));
+    convertDebugSpeed(&debugData.velYHigh, &debugData.velYLow,
+    					(int)(robotData.state.vel[1]*1000.0));
 
-//    convertDebugSpeed(&debugData.velXHigh, &debugData.velXLow,
-//					  	(int)(robotData.state.vel[0]*1000.0));
-//    convertDebugSpeed(&debugData.velYHigh, &debugData.velYLow,
-//    					(int)(robotData.state.vel[1]*1000.0));
+    convertDebugSpeed(&debugData.accelXHigh, &debugData.accelXLow,
+    					(int)(robotData.sensors.acc.linAcc[0]*1000.0));
+    convertDebugSpeed(&debugData.accelYHigh, &debugData.accelYLow,
+    					(int)(robotData.sensors.acc.linAcc[1]*1000.0));
 
-	convertDebugSpeed(&debugData.velXHigh, &debugData.velXLow,
-						(int)(robotData.sensors.gyr.rotVel[2])); //debug da velocidade de rotação com giroscópio
-	convertDebugSpeed(&debugData.velYHigh, &debugData.velYLow,
-						(int)(robotData.sensors.encoder.localVel[2] * 180.0 / M_PI)); //debug da velocidade de rotação com encoder
-    debugData.capacitorVoltage = robotData.capacitorVoltage;
-    debugData.packetFrequency = radioData.packetFrequency;
+//	convertDebugSpeed(&debugData.velXHigh, &debugData.velXLow,
+//						(int)(robotData.sensors.gyr.rotVel[2])); //debug da velocidade de rotação com giroscópio
+//	convertDebugSpeed(&debugData.velYHigh, &debugData.velYLow,
+//						(int)(robotData.sensors.encoder.localVel[2] * 180.0 / M_PI)); //debug da velocidade de rotação com encoder
 }
 
 void convertDebugSpeed(uint8_t* _high, uint8_t* _low, int16_t _speed)
@@ -770,8 +745,8 @@ void estimateState()
 
 	RobotMathMotorVelToLocalVel(robotData.wheelSpeed, encoderVel); // wheel speed in rpm, converted to m/s
 
-	robotData.sensors.encoder.localVel[0] = -encoderVel[1];
-	robotData.sensors.encoder.localVel[1] = encoderVel[0];
+	robotData.sensors.encoder.localVel[0] = encoderVel[0];
+	robotData.sensors.encoder.localVel[1] = encoderVel[1];
 	robotData.sensors.encoder.localVel[2] = encoderVel[2];
 
 //	FusionEKFUpdate(&robotData.sensors, &robotData.state);
