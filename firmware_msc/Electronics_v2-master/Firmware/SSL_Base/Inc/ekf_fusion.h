@@ -66,6 +66,7 @@ typedef struct _FusionEKF
 	// input vector: [ gyr_w acc_x acc_y ]
 	// measurement vector: [ px py pw ]
 	KF kf;
+//	float ekfData[KF_DATA_SIZE(5, 3, 3, 5)];
 	float ekfData[KF_DATA_SIZE(5, 3, 5, 5)];
 
 	float encGyrPos[3];
