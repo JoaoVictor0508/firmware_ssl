@@ -86,6 +86,8 @@ void nRF24_RadioConfig()
 
     nRF24_SetDataRate(nRF24_DR_2Mbps);
 
+    nRF24_SetTXPower(nRF24_TXPWR_0dBm);
+
     radioData.dataReceived = true; // Deve ser true para o rádio inicializar
     radioData.bytesReceived = 0;
     radioData.lastPacketTimestamp = HAL_GetTick();

@@ -44,6 +44,8 @@ typedef struct _RobotSensors
 		uint32_t updated;
 		uint32_t time;
 		float rotVel[3];	// around X, Y, Z [rad/s]
+		float lastRotVel[3];
+		float accel_angular;
 	} gyr;
 
 	struct
@@ -51,6 +53,7 @@ typedef struct _RobotSensors
 		uint32_t updated;
 		uint32_t time;
 		float linAcc[3];	// X, Y, Z [m^2/s]
+		float lastLinAcc[3];
 	} acc;
 
 	struct
@@ -104,7 +107,8 @@ typedef struct _PhysicalParams
 	float dribblerWidth_m; // width the ball can move while at the dribbler
 	float centerOfGravity_m[3]; // measured from geometric robot center point on ground
 	float massDistributionZ; // Factor between 0.5 (mass evenly distributed/solid cylinder) and 1.0 (all mass at outer radius/hollow shell), used for inertia calculation
-	float gyroDistToCenter_m; //Distance of the gyroscope (U7 element in the border schematic) to the robot center to compensate the angular velocityr
+	float gyroDistToCenter_m; //Distance of the gyroscope (U7 element in the border schematic) to the robot center to compensate the angular velocity
+	float accelDistToCenter_m; //Distance of the gyroscope (U5 element in the border schematic) to the robot center to compensate the acceleration
 } PhysicalParams;
 
 typedef struct _RobotSpecs
@@ -123,6 +127,17 @@ typedef struct _RobotState
 
 	float global_vel[2];
 	float global_accel[2];
+
+	float theta_int_gyro;
+	float theta_int_enc;
+
+	float pos_enc[3];
+	float vel_enc[3];
+	float pos_accel[3];
+	float vel_accel[3];
+
+	uint8_t imu_counter;
+	uint8_t enc_counter;
 } RobotState;
 
 typedef struct RobotData_t
@@ -150,6 +165,10 @@ typedef struct RobotData_t
     uint32_t radioCycles;
 
     uint32_t cycles;
+
+    uint32_t lastTime;
+
+    uint8_t deltaT;
 
     KICK_TYPE_t kickType;
     int8_t kickStrength;
@@ -200,6 +219,84 @@ typedef struct RobotData_t
 //    uint8_t data[DEBUG_SIZE];
 //} DebugData_t;
 
+//typedef union DebugData_t {
+//    struct
+//    {
+//        //      informação ---- [indice]
+//        uint8_t posVisionXHigh;   	// [0]
+//        uint8_t posVisionXLow;   	// [1]
+//        uint8_t posVisionYHigh;  	// [2]
+//        uint8_t posVisionYLow;   	// [3]
+//        uint8_t posVisionThetaHigh; // [4]
+//        uint8_t posVisionThetaLow;  // [5]
+//        uint8_t posXHigh;      		// [6]
+//        uint8_t posXLow;       		// [7]
+//        uint8_t posYHigh;      		// [8]
+//        uint8_t posYLow;       		// [9]
+//        uint8_t posThetaHigh;       // [10]
+//        uint8_t posThetaLow;    	// [11]
+//        uint8_t velXHigh;       	// [12]
+//        uint8_t velXLow;        	// [13]
+//        uint8_t velYHigh;       	// [14]
+//        uint8_t velYLow;        	// [15]
+//		uint8_t velThetaGyroHigh;	// [16]
+//		uint8_t velThetaGyroLow;	// [17]
+//		uint8_t velThetaEncHigh;	// [18]
+//		uint8_t velThetaEncLow;		// [19]
+////        uint8_t accelXHigh;			// [20]
+////        uint8_t accelXLow;			// [21]
+////        uint8_t accelYHigh;			// [22]
+////		uint8_t accelYLow;			// [23]
+////        uint8_t velXTheoHigh; // [16]
+////		uint8_t velXTheoLow; // [17]
+////		uint8_t velYTheoHigh; // [18]
+////		uint8_t velYTheoLow; // [19]
+////		uint8_t velWTheoHigh; // [20]
+////		uint8_t velWTheoLow; // [21]
+//		uint8_t velXEncoderHigh; //[20]
+//		uint8_t velXEncoderLow; // [21]
+//		uint8_t velYEncoderHigh; //[22]
+//		uint8_t velYEncoderLow; // [23]
+//
+//    };
+//    uint8_t data[DEBUG_SIZE];
+//} DebugData_t;
+
+// Debug data para testar cenário IMU + Visão no Python
+
+//typedef union DebugData_t {
+//    struct
+//    {
+//        //      informação ---- [indice]
+//        uint8_t posVisionXHigh;   	// [0]
+//        uint8_t posVisionXLow;   	// [1]
+//        uint8_t posVisionYHigh;  	// [2]
+//        uint8_t posVisionYLow;   	// [3]
+//        uint8_t posVisionThetaHigh; // [4]
+//        uint8_t posVisionThetaLow;  // [5]
+//        uint8_t posXHigh;      		// [6]
+//        uint8_t posXLow;       		// [7]
+//        uint8_t posYHigh;      		// [8]
+//        uint8_t posYLow;       		// [9]
+//        uint8_t posThetaHigh;       // [10]
+//        uint8_t posThetaLow;    	// [11]
+//        uint8_t accelXHigh;			// [12]
+//        uint8_t accelXLow;			// [13]
+//        uint8_t accelYHigh;			// [14]
+//        uint8_t accelYLow;			// [15]
+//		uint8_t velThetaGyroHigh;	// [16]
+//		uint8_t velThetaGyroLow;	// [17]
+//		uint8_t velXHigh; 			// [18]
+//		uint8_t velXLow; 			// [19]
+//		uint8_t velYHigh; 			// [20]
+//		uint8_t velYLow; 			// [21]
+//		uint8_t deltaT;				// [22]
+//
+//    };
+//    uint8_t data[DEBUG_SIZE];
+//} DebugData_t;
+
+//Debug data para o cenario modelo + encoder
 typedef union DebugData_t {
     struct
     {
@@ -214,29 +311,19 @@ typedef union DebugData_t {
         uint8_t posXLow;       		// [7]
         uint8_t posYHigh;      		// [8]
         uint8_t posYLow;       		// [9]
-        uint8_t posThetaHigh;       // [10]
-        uint8_t posThetaLow;    	// [11]
-        uint8_t velXHigh;       	// [12]
-        uint8_t velXLow;        	// [13]
-        uint8_t velYHigh;       	// [14]
-        uint8_t velYLow;        	// [15]
-//		uint8_t velThetaGyroHigh;	// [16]
-//		uint8_t velThetaGyroLow;	// [17]
-//		uint8_t velThetaEncHigh;	// [18]
-//		uint8_t velThetaEncLow;		// [19]
-//        uint8_t accelXHigh;			// [20]
-//        uint8_t accelXLow;			// [21]
-//        uint8_t accelYHigh;			// [22]
-//		uint8_t accelYLow;			// [23]
-        uint8_t velXTheoHigh; // [16]
-		uint8_t velXTheoLow; // [17]
-		uint8_t velYTheoHigh; // [18]
-		uint8_t velYTheoLow; // [19]
-//		uint8_t velWTheoHigh; // [20]
-//		uint8_t velWTheoLow; // [21]
-		uint8_t velXEncoderHigh; //[22]
-		uint8_t velXEncoderLow; // [23]
-
+        uint8_t velTheoXHigh;		// [10]
+		uint8_t velTheoXLow;		// [11]
+        uint8_t velTheoYHigh;		// [12]
+        uint8_t velTheoYLow;		// [13]
+        uint8_t velTheoWHigh;		// [14]
+        uint8_t velTheoWLow;		// [15]
+		uint8_t velEncXHigh;		// [16]
+		uint8_t velEncXLow;			// [17]
+		uint8_t velEncYHigh; 		// [18]
+		uint8_t velEncYLow; 		// [19]
+		uint8_t velEncWHigh; 		// [20]
+		uint8_t velEncWLow; 		// [21]
+		uint8_t deltaT;				// [22]
     };
     uint8_t data[DEBUG_SIZE];
 } DebugData_t;
@@ -261,6 +348,7 @@ static RobotData_t robotData = {.battery = 0,
                                 .rollerEnable = false,
 								.specs.physical.wheelRadius_m = 27.0*1e-3,
 								.specs.physical.gyroDistToCenter_m = 16*1e-3,
+								.specs.physical.accelDistToCenter_m = 10.2*1e-3,
 								.specs.driveTrain.motor2WheelRatio = 20.0 / 60.0,
 								.specs.driveTrain.wheel2MotorRatio = 60.0 / 20.0,
 								.specs.physical.frontAngle_deg = 33.0,

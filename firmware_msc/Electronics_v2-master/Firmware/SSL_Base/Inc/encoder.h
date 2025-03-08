@@ -26,8 +26,8 @@ extern TIM_HandleTypeDef* microSecTimer;
 
 #define WHEEL_TRANSMISSION 3 // Redução de 3 : 1
 #define ENCODER_PPR 1000
-#define SAMPLE_SIZE 10
-#define MOVING_AVERAGE 10
+#define SAMPLE_SIZE 4
+#define MOVING_AVERAGE 4
 #define CONV_RESULT (SAMPLE_SIZE + MOVING_AVERAGE - 1)
 
 typedef struct
