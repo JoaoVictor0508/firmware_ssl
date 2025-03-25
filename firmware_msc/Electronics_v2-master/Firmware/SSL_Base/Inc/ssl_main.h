@@ -156,6 +156,8 @@ typedef struct RobotData_t
 
     RobotState state;
 
+    uint32_t estimateTime;
+
     uint8_t capacitorVoltage;
     int16_t wheelSpeed[MOTOR_SZ];
     int16_t encoderCount[MOTOR_SZ];
@@ -296,37 +298,293 @@ typedef struct RobotData_t
 //    uint8_t data[DEBUG_SIZE];
 //} DebugData_t;
 
+//Debug data para o cenario modelo + encoder e modelo + visao
+//typedef union DebugData_t {
+//    struct
+//    {
+//        //      informação ---- [indice]
+//        uint8_t posXHigh;   	// [0]
+//        uint8_t posXLow;   	// [1]
+//        uint8_t posYHigh;  	// [2]
+//        uint8_t posYLow;   	// [3]
+//        uint8_t posThetaHigh; // [4]
+//        uint8_t posThetaLow;  // [5]
+//        uint8_t velXHigh;      		// [6]
+//        uint8_t velXLow;       		// [7]
+//        uint8_t velYHigh;      		// [8]
+//        uint8_t velYLow;       		// [9]
+//        uint8_t velTheoXHigh;		// [10]
+//		uint8_t velTheoXLow;		// [11]
+//        uint8_t velTheoYHigh;		// [12]
+//        uint8_t velTheoYLow;		// [13]
+//        uint8_t velTheoWHigh;		// [14]
+//        uint8_t velTheoWLow;		// [15]
+//		uint8_t velEncXHigh;		// [16]
+//		uint8_t velEncXLow;			// [17]
+//		uint8_t velEncYHigh; 		// [18]
+//		uint8_t velEncYLow; 		// [19]
+//		uint8_t velEncWHigh; 		// [20]
+//		uint8_t velEncWLow; 		// [21]
+//		uint8_t deltaT;				// [22]
+//    };
+//    uint8_t data[DEBUG_SIZE];
+//} DebugData_t;
+
 //Debug data para o cenario modelo + encoder
+//typedef union DebugData_t {
+//    struct
+//    {
+//        //      informação ---- [indice]
+//        uint8_t posXHigh;      		// [0]
+//        uint8_t posXLow;       		// [1]
+//        uint8_t posYHigh;      		// [2]
+//        uint8_t posYLow;       		// [3]
+//        uint8_t posThetaHigh;
+//        uint8_t posThetaLow;
+//        uint8_t velXHigh;
+//        uint8_t velXLow;
+//        uint8_t velYHigh;
+//        uint8_t velYLow;
+//        uint8_t velTheoXHigh;		// [10]
+//		uint8_t velTheoXLow;		// [11]
+//        uint8_t velTheoYHigh;		// [12]
+//        uint8_t velTheoYLow;		// [13]
+//        uint8_t velTheoWHigh;		// [14]
+//        uint8_t velTheoWLow;		// [15]
+//		uint8_t velEncXHigh;		// [16]
+//		uint8_t velEncXLow;			// [17]
+//		uint8_t velEncYHigh; 		// [18]
+//		uint8_t velEncYLow; 		// [19]
+//		uint8_t velEncWHigh; 		// [20]
+//		uint8_t velEncWLow; 		// [21]
+//		uint8_t deltaT;				// [22]
+//    };
+//    uint8_t data[DEBUG_SIZE];
+//} DebugData_t;
+
+//Debug data para o cenario modelo + imu
 typedef union DebugData_t {
     struct
     {
         //      informação ---- [indice]
-        uint8_t posVisionXHigh;   	// [0]
-        uint8_t posVisionXLow;   	// [1]
-        uint8_t posVisionYHigh;  	// [2]
-        uint8_t posVisionYLow;   	// [3]
-        uint8_t posVisionThetaHigh; // [4]
-        uint8_t posVisionThetaLow;  // [5]
-        uint8_t posXHigh;      		// [6]
-        uint8_t posXLow;       		// [7]
-        uint8_t posYHigh;      		// [8]
-        uint8_t posYLow;       		// [9]
+        uint8_t posXHigh;      		// [0]
+        uint8_t posXLow;       		// [1]
+        uint8_t posYHigh;      		// [2]
+        uint8_t posYLow;       		// [3]
+        uint8_t posThetaHigh;		// [4]
+        uint8_t posThetaLow;		// [5]
+        uint8_t velXHigh;			// [6]
+        uint8_t velXLow;			// [7]
+        uint8_t velYHigh;			// [8]
+        uint8_t velYLow;			// [9]
         uint8_t velTheoXHigh;		// [10]
 		uint8_t velTheoXLow;		// [11]
         uint8_t velTheoYHigh;		// [12]
         uint8_t velTheoYLow;		// [13]
         uint8_t velTheoWHigh;		// [14]
         uint8_t velTheoWLow;		// [15]
-		uint8_t velEncXHigh;		// [16]
-		uint8_t velEncXLow;			// [17]
-		uint8_t velEncYHigh; 		// [18]
-		uint8_t velEncYLow; 		// [19]
-		uint8_t velEncWHigh; 		// [20]
-		uint8_t velEncWLow; 		// [21]
+		uint8_t accelXHigh;			// [16]
+		uint8_t accelXLow;			// [17]
+		uint8_t accelYHigh; 		// [18]
+		uint8_t accelYLow; 			// [19]
+		uint8_t gyroWHigh; 			// [20]
+		uint8_t gyroWLow; 			// [21]
 		uint8_t deltaT;				// [22]
     };
     uint8_t data[DEBUG_SIZE];
 } DebugData_t;
+
+// Debug data para o cenario modelo + IMU
+//typedef union DebugData_t {
+//    struct
+//    {
+//        //      informação ---- [indice]
+//        uint8_t posXHigh;   		// [0]
+//        uint8_t posXLow;   			// [1]
+//        uint8_t posYHigh;  			// [2]
+//        uint8_t posYLow;   			// [3]
+//        uint8_t posThetaHigh; 		// [4]
+//        uint8_t posThetaLow;  		// [5]
+//        uint8_t velXHigh;      		// [6]
+//        uint8_t velXLow;       		// [7]
+//        uint8_t velYHigh;      		// [8]
+//        uint8_t velYLow;       		// [9]
+//		uint8_t posXAccelHigh;		// [10]
+//		uint8_t posXAccelLow;			// [11]
+//		uint8_t posYAccelHigh; 		// [12]
+//		uint8_t posYAccelLow; 		// [13]
+//		uint8_t posThetaAccelHigh; 		// [14]
+//		uint8_t posThetaAccelLow; 		// [15]
+//		uint8_t velXAccelHigh;			// [16]
+//		uint8_t velXAccelLow;			// [17]
+//		uint8_t velYAccelHigh; 		// [18]
+//		uint8_t velYAccelLow; 			// [19]
+//		uint8_t gyroWHigh; 			// [20]
+//		uint8_t gyroWLow; 			// [21]
+//		uint8_t deltaT;				// [22]
+//    };
+//    uint8_t data[DEBUG_SIZE];
+//} DebugData_t;
+
+////Debug data para o cenario encoder + visao
+//typedef union DebugData_t {
+//    struct
+//    {
+//        //      informação ---- [indice]
+//        uint8_t posXHigh;   		// [0]
+//        uint8_t posXLow;   			// [1]
+//        uint8_t posYHigh;  			// [2]
+//        uint8_t posYLow;   			// [3]
+//        uint8_t posThetaHigh; 		// [4]
+//        uint8_t posThetaLow;  		// [5]
+//        uint8_t velXHigh;      		// [6]
+//        uint8_t velXLow;       		// [7]
+//        uint8_t velYHigh;      		// [8]
+//        uint8_t velYLow;       		// [9]
+//		uint8_t velEncXHigh;		// [10]
+//		uint8_t velEncXLow;			// [11]
+//		uint8_t velEncYHigh; 		// [12]
+//		uint8_t velEncYLow; 		// [13]
+//		uint8_t velEncWHigh; 		// [14]
+//		uint8_t velEncWLow; 		// [15]
+//		uint8_t data16;				// [16]
+//		uint8_t data17;				// [17]
+//		uint8_t data18; 			// [18]
+//		uint8_t data19; 			// [19]
+//		uint8_t data20; 			// [20]
+//		uint8_t data21; 			// [21]
+//		uint8_t deltaT;				// [22]
+//    };
+//    uint8_t data[DEBUG_SIZE];
+//} DebugData_t;
+
+//Debug data para o cenario imu + visao
+//typedef union DebugData_t {
+//    struct
+//    {
+//        //      informação ---- [indice]
+//        uint8_t posXHigh;   		// [0]
+//        uint8_t posXLow;   			// [1]
+//        uint8_t posYHigh;  			// [2]
+//        uint8_t posYLow;   			// [3]
+//        uint8_t posThetaHigh; 		// [4]
+//        uint8_t posThetaLow;  		// [5]
+//        uint8_t velXHigh;      		// [6]
+//        uint8_t velXLow;       		// [7]
+//        uint8_t velYHigh;      		// [8]
+//        uint8_t velYLow;       		// [9]
+//		uint8_t velEncXHigh;		// [10]
+//		uint8_t velEncXLow;			// [11]
+//		uint8_t velEncYHigh; 		// [12]
+//		uint8_t velEncYLow; 		// [13]
+//		uint8_t velEncWHigh; 		// [14]
+//		uint8_t velEncWLow; 		// [15]
+//		uint8_t accelXHigh;			// [16]
+//		uint8_t accelXLow;			// [17]
+//		uint8_t accelYHigh; 		// [18]
+//		uint8_t accelYLow; 			// [19]
+//		uint8_t gyroWHigh; 			// [20]
+//		uint8_t gyroWLow; 			// [21]
+//		uint8_t deltaT;				// [22]
+//    };
+//    uint8_t data[DEBUG_SIZE];
+//} DebugData_t;
+
+//Debug data para o cenario encoder + imu
+//typedef union DebugData_t {
+//    struct
+//    {
+//        //      informação ---- [indice]
+//        uint8_t posXHigh;   		// [0]
+//        uint8_t posXLow;   			// [1]
+//        uint8_t posYHigh;  			// [2]
+//        uint8_t posYLow;   			// [3]
+//        uint8_t posThetaHigh; 		// [4]
+//        uint8_t posThetaLow;  		// [5]
+//        uint8_t velXHigh;      		// [6]
+//        uint8_t velXLow;       		// [7]
+//        uint8_t velYHigh;      		// [8]
+//        uint8_t velYLow;       		// [9]
+//		uint8_t velEncXHigh;		// [10]
+//		uint8_t velEncXLow;			// [11]
+//		uint8_t velEncYHigh; 		// [12]
+//		uint8_t velEncYLow; 		// [13]
+//		uint8_t velEncWHigh; 		// [14]
+//		uint8_t velEncWLow; 		// [15]
+//		uint8_t accelXHigh;			// [16]
+//		uint8_t accelXLow;			// [17]
+//		uint8_t accelYHigh; 		// [18]
+//		uint8_t accelYLow; 			// [19]
+//		uint8_t gyroWHigh; 			// [20]
+//		uint8_t gyroWLow; 			// [21]
+//		uint8_t deltaT;				// [22]
+//    };
+//    uint8_t data[DEBUG_SIZE];
+//} DebugData_t;
+
+//Debug data para o cenario encoder + imu
+//typedef union DebugData_t {
+//    struct
+//    {
+//        //      informação ---- [indice]
+//        uint8_t posXHigh;   		// [0]
+//        uint8_t posXLow;   			// [1]
+//        uint8_t posYHigh;  			// [2]
+//        uint8_t posYLow;   			// [3]
+//        uint8_t posThetaHigh; 		// [4]
+//        uint8_t posThetaLow;  		// [5]
+//        uint8_t velXHigh;      		// [6]
+//        uint8_t velXLow;       		// [7]
+//        uint8_t velYHigh;      		// [8]
+//        uint8_t velYLow;       		// [9]
+//		uint8_t posXEncHigh;		// [10]
+//		uint8_t posXEncLow;			// [11]
+//		uint8_t posYEncHigh; 		// [12]
+//		uint8_t posYEncLow; 		// [13]
+//		uint8_t posThetaEncHigh; 		// [14]
+//		uint8_t posThetaEncLow; 		// [15]
+//		uint8_t velXEncHigh;			// [16]
+//		uint8_t velXEncLow;			// [17]
+//		uint8_t velYEncHigh; 		// [18]
+//		uint8_t velYEncLow; 			// [19]
+//		uint8_t gyroWHigh; 			// [20]
+//		uint8_t gyroWLow; 			// [21]
+//		uint8_t deltaT;				// [22]
+//    };
+//    uint8_t data[DEBUG_SIZE];
+//} DebugData_t;
+
+//Debug data para o cenario imu + encoder
+//typedef union DebugData_t {
+//    struct
+//    {
+//        //      informação ---- [indice]
+//        uint8_t posXHigh;      		// [0]
+//        uint8_t posXLow;       		// [1]
+//        uint8_t posYHigh;      		// [2]
+//        uint8_t posYLow;       		// [3]
+//        uint8_t posThetaHigh;		// [4]
+//        uint8_t posThetaLow;		// [5]
+//        uint8_t velXHigh;			// [6]
+//        uint8_t velXLow;			// [7]
+//        uint8_t velYHigh;			// [8]
+//        uint8_t velYLow;			// [9]
+//		uint8_t velEncXHigh;		// [10]
+//		uint8_t velEncXLow;			// [11]
+//		uint8_t velEncYHigh; 		// [12]
+//		uint8_t velEncYLow; 		// [13]
+//		uint8_t velEncWHigh; 		// [14]
+//		uint8_t velEncWLow; 		// [15]
+//		uint8_t accelXHigh;			// [16]
+//		uint8_t accelXLow;			// [17]
+//		uint8_t accelYHigh; 		// [18]
+//		uint8_t accelYLow; 			// [19]
+//		uint8_t gyroWHigh; 			// [20]
+//		uint8_t gyroWLow; 			// [21]
+//		uint8_t deltaT;				// [22]
+//    };
+//    uint8_t data[DEBUG_SIZE];
+//} DebugData_t;
 
 static RobotData_t robotData = {.battery = 0,
                                 .mVbattery = 0,

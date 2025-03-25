@@ -64,12 +64,12 @@ void updateEncoders()
                         (2.f * WHEEL_TRANSMISSION * ENCODER_PPR); // Rotações
             speed = -(rotations / dt) * 60;
 
-            encoders[id].speed = speed;
+//            encoders[id].speed = speed;
 
             // if(abs(speed - encoders[id].speed) < 50)
             //
             // {
-//            encoders[id].speed = filter(&encoders[id], speed);
+            encoders[id].speed = filter(&encoders[id], speed);
             // }
         }
     }

@@ -111,16 +111,16 @@ void FusionEKFUpdate_model_vision(const RobotSensors* pSensors, RobotState* pSta
 	memcpy(fusionEKF.kf.u.pData, stateNow.vel, sizeof(float)*3); // transfer the data from the control to the control matrix
 	KFPredict(&fusionEKF.kf, dt); // predict state
 
-//	if(pSensors->vision.updated) // see if vision is available AND if the vision sample is valid
-//	{
-	memcpy(fusionEKF.kf.z.pData, pSensors->vision.pos, sizeof(float)*3); // transfer the data from the vision to the Z matrix
-	KFUpdate(&fusionEKF.kf); // update state
-
-	if(!fusionEKF.vision.online)
+	if(pSensors->vision.updated) // see if vision is available AND if the vision sample is valid
 	{
-		fusionEKF.vision.online = 1;
+		memcpy(fusionEKF.kf.z.pData, pSensors->vision.pos, sizeof(float)*3); // transfer the data from the vision to the Z matrix
+		KFUpdate(&fusionEKF.kf); // update state
+
+		if(!fusionEKF.vision.online)
+		{
+			fusionEKF.vision.online = 1;
+		}
 	}
-//	}
 
 	if(arm_mat_is_nan_f32(&fusionEKF.kf.x))
 	{
@@ -137,22 +137,6 @@ void FusionEKFUpdate_model_vision(const RobotSensors* pSensors, RobotState* pSta
 	pState->vel[0] = fusionEKF.kf.x.pData[3]; // linear velocity X
 	pState->vel[1] = fusionEKF.kf.x.pData[4]; // linear velocity Y
 	pState->vel[2] = stateNow.vel[2]; // angular velocity
-
-	for(int i = 0; i < fusionEKF.kf.Sigma.numRows; i++)
-	{
-		for(int j = 0; j < fusionEKF.kf.Sigma.numCols; j++)
-		{
-			pState->Sigma[i][j] = MAT_ELEMENT(fusionEKF.kf.Sigma, i, j);
-		}
-	}
-
-	for(int k = 0; k < fusionEKF.kf.K.numRows; k++)
-	{
-		for(int a = 0; a < fusionEKF.kf.K.numCols; a++)
-		{
-			pState->kalman_gain[k][a] = MAT_ELEMENT(fusionEKF.kf.K, k, a);
-		}
-	}
 }
 
 void FusionEKFUpdate_model_encoder(const RobotSensors* pSensors, RobotState* pState){
@@ -181,7 +165,6 @@ void FusionEKFUpdate_model_encoder(const RobotSensors* pSensors, RobotState* pSt
 	}
 
 	Vector2fTurnLocal2Global(pSensors->vision.pos[2], pSensors->encoder.localVel[0], pSensors->encoder.localVel[1], encVelGlobal, encVelGlobal+1);
-//	Vector2fTurnLocal2Global(pSensors->vision.pos[2], pState->vel_enc[0], pState->vel_enc[1], encVelGlobal, encVelGlobal+1);
 
 	stateNow.vel[0] = pSensors->theoreticalVel.theoVel[0]; // m/s
 	stateNow.vel[1] = pSensors->theoreticalVel.theoVel[1]; // m/s
@@ -200,17 +183,8 @@ void FusionEKFUpdate_model_encoder(const RobotSensors* pSensors, RobotState* pSt
 	memcpy(fusionEKF.kf.u.pData, stateNow.vel, sizeof(float)*3); // transfer the data from the control to the control matrix
 	KFPredict(&fusionEKF.kf, dt); // predict state
 
-//	pState->enc_counter += 1;
-
 	memcpy(fusionEKF.kf.z.pData, update_pose, sizeof(float)*5); // transfer the data from the vision to the Z matrix
 	KFUpdate(&fusionEKF.kf); // update state
-
-//	if(pState->enc_counter == 100){
-//		memcpy(fusionEKF.kf.z.pData, update_pose, sizeof(float)*5); // transfer the data from the vision to the Z matrix
-//		KFUpdate(&fusionEKF.kf); // update state
-//		pState ->enc_counter = 0;
-//		HAL_GPIO_WritePin(GREEN_LED_GPIO_Port, GREEN_LED_Pin, GPIO_PIN_SET);
-//	}
 
 	if(arm_mat_is_nan_f32(&fusionEKF.kf.x))
 	{
@@ -227,10 +201,6 @@ void FusionEKFUpdate_model_encoder(const RobotSensors* pSensors, RobotState* pSt
 	pState->vel[0] = fusionEKF.kf.x.pData[3]; // linear velocity X
 	pState->vel[1] = fusionEKF.kf.x.pData[4]; // linear velocity Y
 	pState->vel[2] = stateNow.vel[2]; // angular velocity
-
-//	pState->vel_enc[0] = fusionEKF.kf.x.pData[3];
-//	pState->vel_enc[1] = fusionEKF.kf.x.pData[4];
-//	pState->vel_enc[2] = pSensors->encoder.localVel[2];
 }
 
 void FusionEKFUpdate_model_imu(const RobotSensors* pSensors, RobotState* pState){
@@ -239,7 +209,7 @@ void FusionEKFUpdate_model_imu(const RobotSensors* pSensors, RobotState* pState)
 	uint32_t new_sample_time = HAL_GetTick();
 
 	float accelGlobal[2];
-	float velGlobal[2];
+	float accelGlobalVel[2];
 
 	float update_pose[5];
 
@@ -251,38 +221,42 @@ void FusionEKFUpdate_model_imu(const RobotSensors* pSensors, RobotState* pState)
 
 	stateNow.accGyr[0] = pSensors->acc.linAcc[0]; //m/s^2
 	stateNow.accGyr[1] = pSensors->acc.linAcc[1]; //m/s^2
-	stateNow.accGyr[2] = pSensors->gyr.rotVel[2] * M_PI / 180; // convert º/s to rad/s
+	stateNow.accGyr[2] = pSensors->gyr.rotVel[2]; // convert º/s to rad/s
 
 	if(fusionEKF.first_vision_meas == true)
 	{
 		FusionEKFSetState(pSensors->vision.pos);
 		memcpy(fusionEKF.vision.lastPos, pSensors->vision.pos, sizeof(float)*3);
 		fusionEKF.first_vision_meas = false;
+
+		pState->pos_accel[0] = pSensors->vision.pos[0];
+		pState->pos_accel[1] = pSensors->vision.pos[1];
+		pState->pos_accel[2] = pSensors->vision.pos[2];
+		pState->vel_accel[0] = pSensors->encoder.localVel[0];
+		pState->vel_accel[1] = pSensors->encoder.localVel[1];
+		pState->vel_accel[2] = pSensors->encoder.localVel[2];
 	}
 
-	if(fusionEKF.predict_now == false) // see if vision is available AND if the vision sample is valid
-	{
-		Vector2fTurnLocal2Global(pState->pos[2], stateNow.accGyr[0], stateNow.accGyr[1], accelGlobal, accelGlobal+1);
-		Vector2fTurnLocal2Global(pState->pos[2], fusionEKF.kf.x.pData[3], fusionEKF.kf.x.pData[4], velGlobal, velGlobal+1);
+	Vector2fTurnLocal2Global(pSensors->vision.pos[2], pState->vel_accel[0], pState->vel_accel[1], accelGlobalVel, accelGlobalVel+1);
+	Vector2fTurnLocal2Global(pSensors->vision.pos[2], stateNow.accGyr[0], stateNow.accGyr[1], accelGlobal, accelGlobal+1);
 
-		update_pose[0] = fusionEKF.kf.x.pData[0] + velGlobal[0] * dt + accelGlobal[0]*dt*dt*0.5f; // X position calculated using accel in the update
-		update_pose[1] = fusionEKF.kf.x.pData[1] + velGlobal[1] * dt + accelGlobal[1]*dt*dt*0.5f; // Y position calculated using accel in the update
-		update_pose[2] = fusionEKF.kf.x.pData[2] + stateNow.accGyr[2] * dt; // theta position calculated using gyro in the update
-		update_pose[3] = fusionEKF.kf.x.pData[3] + stateNow.accGyr[0]; // X local Velocity calculated using accel in the update
-		update_pose[4] = fusionEKF.kf.x.pData[4] + stateNow.accGyr[1]; // Y local Velocity calculated using accel in the update
+	pState->pos_accel[0] = pState->pos_accel[0] + accelGlobalVel[0] * dt + accelGlobal[0] * 0.5 * dt * dt;
+	pState->pos_accel[1] = pState->pos_accel[1] + accelGlobalVel[1] * dt + accelGlobal[1] * 0.5 * dt * dt;
+	pState->pos_accel[2] += stateNow.accGyr[2] * dt;
+	pState->vel_accel[0] += stateNow.accGyr[0] * dt;
+	pState->vel_accel[1] += stateNow.accGyr[1] * dt;
 
-		memcpy(fusionEKF.kf.z.pData, update_pose, sizeof(float)*5); // transfer the data from the pose updated to the Z matrix
-		KFUpdate(&fusionEKF.kf); // update state
+	update_pose[0] = pState->pos_accel[0];
+	update_pose[1] = pState->pos_accel[1];
+	update_pose[2] = pState->pos_accel[2];
+	update_pose[3] = pState->vel_accel[0];
+	update_pose[4] = pState->vel_accel[1];
 
-		fusionEKF.predict_now = true;
-	}
-	else
-	{
-		memcpy(fusionEKF.kf.u.pData, stateNow.vel, sizeof(float)*3); // transfer the data from the control to the control matrix
-		KFPredict(&fusionEKF.kf, dt); // predict state
+	memcpy(fusionEKF.kf.u.pData, stateNow.vel, sizeof(float)*3); // transfer the data from the control to the control matrix
+	KFPredict(&fusionEKF.kf, dt); // predict state
 
-		fusionEKF.predict_now = false;
-	}
+	memcpy(fusionEKF.kf.z.pData, update_pose, sizeof(float)*5); // transfer the data from the pose updated to the Z matrix
+	KFUpdate(&fusionEKF.kf); // update state
 
 	if(arm_mat_is_nan_f32(&fusionEKF.kf.x))
 	{
@@ -292,6 +266,16 @@ void FusionEKFUpdate_model_imu(const RobotSensors* pSensors, RobotState* pState)
 
 	fusionEKF.lastTime = new_sample_time;
 
+	pState->imu_counter += 1;
+
+	if(pState->imu_counter == 4){
+		pState->vel_accel[0] = fusionEKF.kf.x.pData[3];
+		pState->vel_accel[1] = fusionEKF.kf.x.pData[4];
+	}
+
+	pState->vel_accel[0] = fusionEKF.kf.x.pData[3];
+	pState->vel_accel[1] = fusionEKF.kf.x.pData[4];
+
 	pState->pos[0] = fusionEKF.kf.x.pData[0]; // position X
 	pState->pos[1] = fusionEKF.kf.x.pData[1]; // position Y
 	pState->pos[2] = fusionEKF.kf.x.pData[2]; // angular position
@@ -299,22 +283,6 @@ void FusionEKFUpdate_model_imu(const RobotSensors* pSensors, RobotState* pState)
 	pState->vel[0] = fusionEKF.kf.x.pData[3]; // linear velocity X
 	pState->vel[1] = fusionEKF.kf.x.pData[4]; // linear velocity Y
 	pState->vel[2] = stateNow.vel[2]; // angular velocity
-
-	for(int i = 0; i < fusionEKF.kf.Sigma.numRows; i++)
-	{
-		for(int j = 0; j < fusionEKF.kf.Sigma.numCols; j++)
-		{
-			pState->Sigma[i][j] = MAT_ELEMENT(fusionEKF.kf.Sigma, i, j);
-		}
-	}
-
-	for(int k = 0; k < fusionEKF.kf.K.numRows; k++)
-	{
-		for(int a = 0; a < fusionEKF.kf.K.numCols; a++)
-		{
-			pState->kalman_gain[k][a] = MAT_ELEMENT(fusionEKF.kf.K, k, a);
-		}
-	}
 }
 
 void FusionEKFUpdate_imu_vision(const RobotSensors* pSensors, RobotState* pState){
@@ -336,9 +304,10 @@ void FusionEKFUpdate_imu_vision(const RobotSensors* pSensors, RobotState* pState
 		fusionEKF.first_vision_meas = false;
 	}
 
-//	if(pSensors->vision.updated && isVisionSampleValid(pSensors->vision.pos, fusionEKF.vision.lastPos)) // see if vision is available AND if the vision sample is valid
+	memcpy(fusionEKF.kf.u.pData, stateNow.accGyr, sizeof(float)*3); // transfer the data from the control to the control matrix
+	KFPredict(&fusionEKF.kf, dt); // predict state
+
 	if(pSensors->vision.updated)
-//	if(fusionEKF.predict_now == false)
 	{
 		memcpy(fusionEKF.kf.z.pData, pSensors->vision.pos, sizeof(float)*3); // transfer the data from the vision to the Z matrix
 		KFUpdate(&fusionEKF.kf); // update state
@@ -349,18 +318,6 @@ void FusionEKFUpdate_imu_vision(const RobotSensors* pSensors, RobotState* pState
 		}
 
 		fusionEKF.predict_now = true;
-	}
-	else
-	{
-		memcpy(fusionEKF.kf.u.pData, stateNow.accGyr, sizeof(float)*3); // transfer the data from the control to the control matrix
-		KFPredict(&fusionEKF.kf, dt); // predict state
-
-		if(fusionEKF.vision.online)
-		{
-			fusionEKF.vision.online = 0;
-		}
-
-		fusionEKF.predict_now = false;
 	}
 
 	if(arm_mat_is_nan_f32(&fusionEKF.kf.x))
@@ -410,7 +367,7 @@ void FusionEKFUpdate_imu_encoder(const RobotSensors* pSensors, RobotState* pStat
 
 	stateNow.accGyr[0] = pSensors->acc.linAcc[0]; // m/s^2
 	stateNow.accGyr[1] = pSensors->acc.linAcc[1]; // m/s^2
-	stateNow.accGyr[2] = pSensors->gyr.rotVel[2] * M_PI / 180; // convert º/s to rad/s
+	stateNow.accGyr[2] = pSensors->gyr.rotVel[2]; // convert º/s to rad/s
 
 	stateNow.vel[0] = pSensors->encoder.localVel[0]; // m/s
 	stateNow.vel[1] = pSensors->encoder.localVel[1]; // m/s
@@ -418,27 +375,32 @@ void FusionEKFUpdate_imu_encoder(const RobotSensors* pSensors, RobotState* pStat
 
 	if(fusionEKF.first_vision_meas == true)
 	{
-		stateNow.pos[0] = pSensors->vision.pos[0];
-		stateNow.pos[1] = pSensors->vision.pos[1];
-		stateNow.pos[2] = visionMultiTurnCorrection(pSensors->vision.pos[2]);
-		FusionEKFSetState(stateNow.pos);
+		FusionEKFSetState(pSensors->vision.pos);
 		memcpy(fusionEKF.vision.lastPos, pSensors->vision.pos, sizeof(float)*3);
 		fusionEKF.first_vision_meas = false;
 
-		dt = 0.0;
+		pState->pos_enc[0] = pSensors->vision.pos[0];
+		pState->pos_enc[1] = pSensors->vision.pos[1];
+		pState->pos_enc[2] = pSensors->vision.pos[2];
+		pState->vel_enc[0] = pSensors->encoder.localVel[0];
+		pState->vel_enc[1] = pSensors->encoder.localVel[1];
+		pState->vel_enc[2] = pSensors->encoder.localVel[2];
 	}
+
+	Vector2fTurnLocal2Global(pSensors->vision.pos[2], pSensors->encoder.localVel[0], pSensors->encoder.localVel[1], encVelGlobal, encVelGlobal+1);
+
+	pState->pos_enc[0] = pState->pos_enc[0] + encVelGlobal[0] * dt;
+	pState->pos_enc[1] = pState->pos_enc[1] + encVelGlobal[1] * dt;
+	pState->pos_enc[2] = pState->pos_enc[2] + pSensors->encoder.localVel[2] * dt;
+
+	update_pose[0] = pState->pos_enc[0]; // X position calculated using encoder in the update
+	update_pose[1] = pState->pos_enc[1]; // Y position calculated using encoder in the update
+	update_pose[2] = pState->pos_enc[2]; // theta position calculated using encoder in the update
+	update_pose[3] = pSensors->encoder.localVel[0];
+	update_pose[4] = pSensors->encoder.localVel[1];
 
 	memcpy(fusionEKF.kf.u.pData, stateNow.accGyr, sizeof(float)*3); // transfer the data from the control to the control matrix
 	KFPredict(&fusionEKF.kf, dt); // predict state
-
-	Vector2fTurnLocal2Global(pState->pos[2], pSensors->encoder.localVel[0], pSensors->encoder.localVel[1], encVelGlobal, encVelGlobal+1);
-//	Vector2fTurnLocal2Global(pSensors->vision.pos[2], pSensors->encoder.localVel[0], pSensors->encoder.localVel[1], encVelGlobal, encVelGlobal+1);
-
-	update_pose[0] = fusionEKF.kf.x.pData[0] + encVelGlobal[0] * dt; // X position calculated using encoder in the update
-	update_pose[1] = fusionEKF.kf.x.pData[1] + encVelGlobal[1] * dt; // Y position calculated using encoder in the update
-	update_pose[2] = fusionEKF.kf.x.pData[2] + pSensors->encoder.localVel[2] * dt; // theta position calculated using encoder in the update
-	update_pose[3] = stateNow.vel[0]; // X local velocity from the encoders
-	update_pose[4] = stateNow.vel[1]; // Y local velocity from the encoders
 
 	memcpy(fusionEKF.kf.z.pData, update_pose, sizeof(float)*5); // transfer the data from the update pose to the Z matrix
 	KFUpdate(&fusionEKF.kf); // update state
@@ -481,7 +443,10 @@ void FusionEKFUpdate_encoder_vision(const RobotSensors* pSensors, RobotState* pS
 		fusionEKF.first_vision_meas = false;
 	}
 
-	if(pSensors->vision.updated && isVisionSampleValid(pSensors->vision.pos, fusionEKF.vision.lastPos)) // see if vision is available AND if the vision sample is valid
+	memcpy(fusionEKF.kf.u.pData, stateNow.vel, sizeof(float)*3); // transfer the data from the control to the control matrix
+	KFPredict(&fusionEKF.kf, dt); // predict state
+
+	if(pSensors->vision.updated) // see if vision is available AND if the vision sample is valid
 	{
 		memcpy(fusionEKF.kf.z.pData, pSensors->vision.pos, sizeof(float)*3); // transfer the data from the vision to the Z matrix
 		KFUpdate(&fusionEKF.kf); // update state
@@ -489,16 +454,6 @@ void FusionEKFUpdate_encoder_vision(const RobotSensors* pSensors, RobotState* pS
 		if(!fusionEKF.vision.online)
 		{
 			fusionEKF.vision.online = 1;
-		}
-	}
-	else
-	{
-		memcpy(fusionEKF.kf.u.pData, stateNow.vel, sizeof(float)*3); // transfer the data from the control to the control matrix
-		KFPredict(&fusionEKF.kf, dt); // predict state
-
-		if(fusionEKF.vision.online)
-		{
-			fusionEKF.vision.online = 0;
 		}
 	}
 
@@ -517,22 +472,6 @@ void FusionEKFUpdate_encoder_vision(const RobotSensors* pSensors, RobotState* pS
 	pState->vel[0] = fusionEKF.kf.x.pData[3]; // linear velocity X
 	pState->vel[1] = fusionEKF.kf.x.pData[4]; // linear velocity Y
 	pState->vel[2] = stateNow.accGyr[2]; // angular velocity
-
-	for(int i = 0; i < fusionEKF.kf.Sigma.numRows; i++)
-	{
-		for(int j = 0; j < fusionEKF.kf.Sigma.numCols; j++)
-		{
-			pState->Sigma[i][j] = MAT_ELEMENT(fusionEKF.kf.Sigma, i, j);
-		}
-	}
-
-	for(int k = 0; k < fusionEKF.kf.K.numRows; k++)
-	{
-		for(int a = 0; a < fusionEKF.kf.K.numCols; a++)
-		{
-			pState->kalman_gain[k][a] = MAT_ELEMENT(fusionEKF.kf.K, k, a);
-		}
-	}
 }
 
 void FusionEKFUpdate_encoder_imu(const RobotSensors* pSensors, RobotState* pState){
@@ -542,7 +481,6 @@ void FusionEKFUpdate_encoder_imu(const RobotSensors* pSensors, RobotState* pStat
 
 	float accelGlobal[2];
 	float accelGlobalVel[2];
-	float velGlobal[2];
 
 	float update_pose[5];
 
@@ -571,9 +509,10 @@ void FusionEKFUpdate_encoder_imu(const RobotSensors* pSensors, RobotState* pStat
 	stateNow.accGyr[2] = pSensors->gyr.rotVel[2]; // * M_PI / 180.0; // convert º/s to rad/s
 
 	Vector2fTurnLocal2Global(pSensors->vision.pos[2], pState->vel_accel[0], pState->vel_accel[1], accelGlobalVel, accelGlobalVel+1);
+	Vector2fTurnLocal2Global(pSensors->vision.pos[2], stateNow.accGyr[0], stateNow.accGyr[1], accelGlobal, accelGlobal+1);
 
-	pState->pos_accel[0] += accelGlobalVel[0] * dt;
-	pState->pos_accel[1] += accelGlobalVel[1] * dt;
+	pState->pos_accel[0] = pState->pos_accel[0] + accelGlobalVel[0] * dt + accelGlobal[0] * 0.5 * dt * dt;
+	pState->pos_accel[1] = pState->pos_accel[1] + accelGlobalVel[1] * dt + accelGlobal[1] * 0.5 * dt * dt;
 	pState->pos_accel[2] += stateNow.accGyr[2] * dt;
 	pState->vel_accel[0] += stateNow.accGyr[0] * dt;
 	pState->vel_accel[1] += stateNow.accGyr[1] * dt;
@@ -600,10 +539,13 @@ void FusionEKFUpdate_encoder_imu(const RobotSensors* pSensors, RobotState* pStat
 
 	pState->imu_counter += 1;
 
-	if(pState->imu_counter == 5){
-		pState->vel_accel[0] = fusionEKF.kf.x.pData[3];
-		pState->vel_accel[1] = fusionEKF.kf.x.pData[4];
-	}
+//	if(pState->imu_counter == 5){
+//		pState->vel_accel[0] = fusionEKF.kf.x.pData[3];
+//		pState->vel_accel[1] = fusionEKF.kf.x.pData[4];
+//	}
+
+	pState->vel_accel[0] = fusionEKF.kf.x.pData[3];
+	pState->vel_accel[1] = fusionEKF.kf.x.pData[4];
 
 	pState->pos[0] = fusionEKF.kf.x.pData[0]; // position X
 	pState->pos[1] = fusionEKF.kf.x.pData[1]; // position Y
@@ -690,15 +632,15 @@ static void initEKF()
 //	KFInit(&fusionEKF.kf, 5, 3, 3, fusionEKF.ekfData);
 	KFInit(&fusionEKF.kf, 5, 3, 5, fusionEKF.ekfData);
 
-	arm_mat_scale_f32(&fusionEKF.kf.Sigma, 0.001f, &fusionEKF.kf.Sigma);
+//	arm_mat_scale_f32(&fusionEKF.kf.Sigma, 0.001f, &fusionEKF.kf.Sigma);
 
 //	fusionEKF.kf.pState = &ekfStateFunc;
-	fusionEKF.kf.pState = &ekfStateFunc_encoder;
-//	fusionEKF.kf.pState = &ekfStateFunc_model;
+//	fusionEKF.kf.pState = &ekfStateFunc_encoder;
+	fusionEKF.kf.pState = &ekfStateFunc_model;
 
 //	fusionEKF.kf.pStateJacobian = &ekfStateJacobianFunc;
-	fusionEKF.kf.pStateJacobian = &ekfStateJacobianFunc_encoder;
-//	fusionEKF.kf.pStateJacobian = &ekfStateJacobianFunc_model;
+//	fusionEKF.kf.pStateJacobian = &ekfStateJacobianFunc_encoder;
+	fusionEKF.kf.pStateJacobian = &ekfStateJacobianFunc_model;
 
 //	fusionEKF.kf.pMeas = &ekfMeasFuncPoseState;
 	fusionEKF.kf.pMeas = &ekfMeasFuncFullState;
@@ -765,8 +707,8 @@ void ekfStateFunc_model(arm_matrix_instance_f32* pX, const arm_matrix_instance_f
 
 	float a = -M_PI_2 + p_w;
 
-	float px1 = p_x + (arm_cos_f32(a)*vel_x-arm_sin_f32(a)*vel_y)*dt;
-	float py1 = p_y + (arm_sin_f32(a)*vel_x+arm_cos_f32(a)*vel_y)*dt;
+	float px1 = p_x + (arm_cos_f32(a)*v_x-arm_sin_f32(a)*v_y)*dt;
+	float py1 = p_y + (arm_sin_f32(a)*v_x+arm_cos_f32(a)*v_y)*dt;
 	float vx1 = vel_x;
 	float vy1 = vel_y;
 	float pw1 = p_w + vel_theta*dt;
@@ -792,8 +734,8 @@ void ekfStateFunc_encoder(arm_matrix_instance_f32* pX, const arm_matrix_instance
 
 	float a = -M_PI_2 + p_w;
 
-	float px1 = p_x + (arm_cos_f32(a)*vel_x-arm_sin_f32(a)*vel_y)*dt;
-	float py1 = p_y + (arm_sin_f32(a)*vel_x+arm_cos_f32(a)*vel_y)*dt;
+	float px1 = p_x + (arm_cos_f32(a)*v_x-arm_sin_f32(a)*v_y)*dt;
+	float py1 = p_y + (arm_sin_f32(a)*v_x+arm_cos_f32(a)*v_y)*dt;
 	float vx1 = vel_x;
 	float vy1 = vel_y;
 	float pw1 = p_w + vel_theta*dt;
@@ -846,13 +788,18 @@ static void ekfStateJacobianFunc_model(const arm_matrix_instance_f32* pX, const 
 	float v_x = MAT_ELEMENT(*pX, 3, 0);
 	float v_y = MAT_ELEMENT(*pX, 4, 0);
 
-	arm_mat_identity_f32(pF);
+//	arm_mat_identity_f32(pF);
 
-	MAT_ELEMENT(*pF, 0, 2) = arm_cos_f32(p_w) * vel_x * dt - arm_sin_f32(p_w) * vel_y * dt;
+	MAT_ELEMENT(*pF, 3, 3) = 0.0;
+	MAT_ELEMENT(*pF, 4, 4) = 0.0;
+
+	MAT_ELEMENT(*pF, 2, 2) = 1.0;
+
+	MAT_ELEMENT(*pF, 0, 2) = arm_cos_f32(p_w) * v_x * dt - arm_sin_f32(p_w) * v_y * dt;
 	MAT_ELEMENT(*pF, 0, 3) = arm_sin_f32(p_w) * dt;
 	MAT_ELEMENT(*pF, 0, 4) = arm_cos_f32(p_w) * dt;
 
-	MAT_ELEMENT(*pF, 1, 2) = arm_sin_f32(p_w) * vel_x * dt + arm_cos_f32(p_w) * vel_y * dt;
+	MAT_ELEMENT(*pF, 1, 2) = arm_sin_f32(p_w) * v_x * dt + arm_cos_f32(p_w) * v_y * dt;
 	MAT_ELEMENT(*pF, 1, 3) = -arm_cos_f32(p_w) * dt;
 	MAT_ELEMENT(*pF, 1, 4) = arm_sin_f32(p_w) * dt;
 }
@@ -867,13 +814,15 @@ static void ekfStateJacobianFunc_encoder(const arm_matrix_instance_f32* pX, cons
 	float v_x = MAT_ELEMENT(*pX, 3, 0);
 	float v_y = MAT_ELEMENT(*pX, 4, 0);
 
-	arm_mat_identity_f32(pF);
+//	arm_mat_identity_f32(pF);
 
-	MAT_ELEMENT(*pF, 0, 2) = arm_cos_f32(p_w) * vel_x * dt - arm_sin_f32(p_w) * vel_y * dt;
+	MAT_ELEMENT(*pF, 2, 2) = 1.0;
+
+	MAT_ELEMENT(*pF, 0, 2) = arm_cos_f32(p_w) * v_x * dt - arm_sin_f32(p_w) * v_y * dt;
 	MAT_ELEMENT(*pF, 0, 3) = arm_sin_f32(p_w) * dt;
 	MAT_ELEMENT(*pF, 0, 4) = arm_cos_f32(p_w) * dt;
 
-	MAT_ELEMENT(*pF, 1, 2) = arm_sin_f32(p_w) * vel_x * dt + arm_cos_f32(p_w) * vel_y * dt;
+	MAT_ELEMENT(*pF, 1, 2) = arm_sin_f32(p_w) * v_x * dt + arm_cos_f32(p_w) * v_y * dt;
 	MAT_ELEMENT(*pF, 1, 3) = -arm_cos_f32(p_w) * dt;
 	MAT_ELEMENT(*pF, 1, 4) = arm_sin_f32(p_w) * dt;
 }
