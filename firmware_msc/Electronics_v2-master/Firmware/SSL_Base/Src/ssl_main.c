@@ -85,18 +85,15 @@ void RobotMathMotorVelToLocalVel(const int16_t* pMotor, float* pLocal);
 LagElementPT1 lagAccel[2];
 LagElementPT1 lagGyro[1];
 
-//// ruido para modelo + visao
-//static FusionEKFConfig configFusionKF = {
-//	.posNoiseXY = 0.0001f,
-//	.posNoiseW  = 0.00047f,
-//	.velNoiseXY = 0.0004f,
-//	.visNoiseXY = 0.00116f,
-//	.visNoiseW  = 0.00134f,
-//	.visNoiseVel= 0.0098f,
-//	.outlierMaxVelXY = 3.0f,
-//	.outlierMaxVelW = 3.0f,
-//	.emaAccelT = 0.005f,
-//};
+// ruido para modelo + visao
+static FusionEKFConfig configFusionKF = {
+	.posNoiseXY = 0.0001f,
+	.posNoiseW  = 0.00047f,
+	.velNoiseXY = 0.0004f,
+	.visNoiseXY = 0.00116f,
+	.visNoiseW  = 0.009866f,
+	.visNoiseVel= 0.0098f,
+};
 
 // ruido para modelo + encoder
 //static FusionEKFConfig configFusionKF = {
@@ -119,14 +116,14 @@ LagElementPT1 lagGyro[1];
 //};
 
 // ruido para modelo + imu
-static FusionEKFConfig configFusionKF = {
-	.posNoiseXY = 0.01f,		// Incerteza da posição do modelo
-	.posNoiseW = 0.0047f,		// Incerteza da orientação do modelo
-	.velNoiseXY = 0.0001f,		// Incerteza da velocidade do modelo
-	.visNoiseXY = 0.008395691788266567f,		// Incerteza da posição da IMU
-	.visNoiseW = 0.020104334777182934f,		// Incerteza da orientação da IMU
-	.visNoiseVel = 0.0016662096492746873f,		// Incerteza da velocidade da IMU
-};
+//static FusionEKFConfig configFusionKF = {
+//	.posNoiseXY = 0.01f,		// Incerteza da posição do modelo
+//	.posNoiseW = 0.0047f,		// Incerteza da orientação do modelo
+//	.velNoiseXY = 0.0001f,		// Incerteza da velocidade do modelo
+//	.visNoiseXY = 0.008395691788266567f,		// Incerteza da posição da IMU
+//	.visNoiseW = 0.020104334777182934f,		// Incerteza da orientação da IMU
+//	.visNoiseVel = 0.0016662096492746873f,		// Incerteza da velocidade da IMU
+//};
 
 // ruido para encoder + imu
 //static FusionEKFConfig configFusionKF = {
@@ -177,12 +174,19 @@ int main(void)
         {
             processRadio();
 
-            uint32_t timeBefore = __HAL_TIM_GET_COUNTER(microSecTimer);;
+            uint32_t timeBefore = __HAL_TIM_GET_COUNTER(microSecTimer);
 
             estimateState();
 
-            robotData.estimateTime = max(__HAL_TIM_GET_COUNTER(microSecTimer), timeBefore) -
-									 min(__HAL_TIM_GET_COUNTER(microSecTimer), timeBefore);
+            uint32_t timeAfter = __HAL_TIM_GET_COUNTER(microSecTimer);
+
+            robotData.estimateTime = max(timeAfter, timeBefore) -
+									 min(timeAfter, timeBefore);
+
+            if(robotData.estimateTime > 4000)
+            {
+            	robotData.estimateTime = robotData.estimateTime;
+            }
 
             runMotors();
             setKickCommand();
@@ -611,39 +615,6 @@ void readBattery()
 
 //// UpdateDebugInfo para testar cenario Modelo + Visao no Python
 //
-//void updateDebugInfo()
-//{
-//	convertDebugSpeed(&debugData.posXHigh, &debugData.posXLow,
-//						(int)(robotData.state.pos[0]*1000.0));
-//	convertDebugSpeed(&debugData.posYHigh, &debugData.posYLow,
-//						(int)(robotData.state.pos[1]*1000.0));
-//	convertDebugSpeed(&debugData.posThetaHigh, &debugData.posThetaLow,
-//						(int)(robotData.state.pos[2] * 180.0 / M_PI));
-//
-//    convertDebugSpeed(&debugData.velXHigh, &debugData.velXLow,
-//    					(int)(robotData.state.vel[0] * 1000.0));
-//    convertDebugSpeed(&debugData.velYHigh, &debugData.velYLow,
-//    					(int)(robotData.state.vel[1] * 1000.0));
-//
-//    convertDebugSpeed(&debugData.velTheoXHigh, &debugData.velTheoXLow,
-//						(int)(robotData.sensors.theoreticalVel.theoVel[0] * 1000.0));
-//	convertDebugSpeed(&debugData.velTheoYHigh, &debugData.velTheoYLow,
-//						(int)(robotData.sensors.theoreticalVel.theoVel[1] * 1000.0));
-//	convertDebugSpeed(&debugData.velTheoWHigh, &debugData.velTheoWLow,
-//						(int)(robotData.sensors.theoreticalVel.theoVel[2] * 180.0 / M_PI));
-//
-//	convertDebugSpeed(&debugData.velEncXHigh, &debugData.velEncXLow,
-//						(int)(robotData.sensors.encoder.localVel[0] * 1000.0));
-//	convertDebugSpeed(&debugData.velEncYHigh, &debugData.velEncYLow,
-//						(int)(robotData.sensors.encoder.localVel[1] * 1000.0));
-//	convertDebugSpeed(&debugData.velEncWHigh, &debugData.velEncWLow,
-//						(int)(robotData.sensors.encoder.localVel[2] * 180.0 / M_PI));
-//
-//    debugData.deltaT = robotData.estimateTime;
-//}
-
-// UpdateDebugInfo para testar cenario Modelo + IMU no Python
-
 void updateDebugInfo()
 {
 	convertDebugSpeed(&debugData.posXHigh, &debugData.posXLow,
@@ -665,15 +636,48 @@ void updateDebugInfo()
 	convertDebugSpeed(&debugData.velTheoWHigh, &debugData.velTheoWLow,
 						(int)(robotData.sensors.theoreticalVel.theoVel[2] * 180.0 / M_PI));
 
-	convertDebugSpeed(&debugData.accelXHigh, &debugData.accelXLow,
-						(int)(robotData.sensors.acc.linAcc[0] * 1000.0));
-	convertDebugSpeed(&debugData.accelYHigh, &debugData.accelYLow,
-						(int)(robotData.sensors.acc.linAcc[1] * 1000.0));
-	convertDebugSpeed(&debugData.gyroWHigh, &debugData.gyroWLow,
-						(int)(robotData.sensors.gyr.rotVel[2] * 180.0 / M_PI));
+	convertDebugSpeed(&debugData.velEncXHigh, &debugData.velEncXLow,
+						(int)(robotData.sensors.encoder.localVel[0] * 1000.0));
+	convertDebugSpeed(&debugData.velEncYHigh, &debugData.velEncYLow,
+						(int)(robotData.sensors.encoder.localVel[1] * 1000.0));
+	convertDebugSpeed(&debugData.velEncWHigh, &debugData.velEncWLow,
+						(int)(robotData.sensors.encoder.localVel[2] * 180.0 / M_PI));
 
     debugData.deltaT = robotData.estimateTime;
 }
+
+// UpdateDebugInfo para testar cenario Modelo + IMU no Python
+
+//void updateDebugInfo()
+//{
+//	convertDebugSpeed(&debugData.posXHigh, &debugData.posXLow,
+//						(int)(robotData.state.pos[0]*1000.0));
+//	convertDebugSpeed(&debugData.posYHigh, &debugData.posYLow,
+//						(int)(robotData.state.pos[1]*1000.0));
+//	convertDebugSpeed(&debugData.posThetaHigh, &debugData.posThetaLow,
+//						(int)(robotData.state.pos[2] * 180.0 / M_PI));
+//
+//    convertDebugSpeed(&debugData.velXHigh, &debugData.velXLow,
+//    					(int)(robotData.state.vel[0] * 1000.0));
+//    convertDebugSpeed(&debugData.velYHigh, &debugData.velYLow,
+//    					(int)(robotData.state.vel[1] * 1000.0));
+//
+//    convertDebugSpeed(&debugData.velTheoXHigh, &debugData.velTheoXLow,
+//						(int)(robotData.sensors.theoreticalVel.theoVel[0] * 1000.0));
+//	convertDebugSpeed(&debugData.velTheoYHigh, &debugData.velTheoYLow,
+//						(int)(robotData.sensors.theoreticalVel.theoVel[1] * 1000.0));
+//	convertDebugSpeed(&debugData.velTheoWHigh, &debugData.velTheoWLow,
+//						(int)(robotData.sensors.theoreticalVel.theoVel[2] * 180.0 / M_PI));
+//
+//	convertDebugSpeed(&debugData.accelXHigh, &debugData.accelXLow,
+//						(int)(robotData.sensors.acc.linAcc[0] * 1000.0));
+//	convertDebugSpeed(&debugData.accelYHigh, &debugData.accelYLow,
+//						(int)(robotData.sensors.acc.linAcc[1] * 1000.0));
+//	convertDebugSpeed(&debugData.gyroWHigh, &debugData.gyroWLow,
+//						(int)(robotData.sensors.gyr.rotVel[2] * 180.0 / M_PI));
+//
+//    debugData.deltaT = robotData.estimateTime;
+//}
 
 // UpdateDebugInfo para testar cenario Modelo + Visao no Python
 //void updateDebugInfo()
@@ -900,6 +904,63 @@ void updateDebugInfo()
 //    debugData.deltaT = robotData.estimateTime;
 //}
 
+// updateDebugInfo para testes finais de posição e tempo
+//void updateDebugInfo()
+//{
+//	convertDebugSpeed(&debugData.posXHigh, &debugData.posXLow,
+//						(int)(robotData.state.pos[0]*1000.0));
+//	convertDebugSpeed(&debugData.posYHigh, &debugData.posYLow,
+//						(int)(robotData.state.pos[1]*1000.0));
+//	convertDebugSpeed(&debugData.posThetaHigh, &debugData.posThetaLow,
+//						(int)(robotData.state.pos[2] * 180.0 / M_PI));
+//
+////    convertDebugSpeed(&debugData.velXHigh, &debugData.velXLow,
+////    					(int)(robotData.state.vel[0] * 1000.0));
+////    convertDebugSpeed(&debugData.velYHigh, &debugData.velYLow,
+////    					(int)(robotData.state.vel[1] * 1000.0));
+////
+//	convertDebugSpeed(&debugData.posXAccelHigh, &debugData.posXAccelLow,
+//						(int)(robotData.state.pos_enc[0] * 1000.0));
+//	convertDebugSpeed(&debugData.posYAccelHigh, &debugData.posYAccelLow,
+//						(int)(robotData.state.pos_enc[1] * 1000.0));
+//	convertDebugSpeed(&debugData.posWAccelHigh, &debugData.posWAccelLow,
+//						(int)(robotData.state.pos_enc[2] * 180.0 / M_PI));
+////	convertDebugSpeed(&debugData.velXAccelHigh, &debugData.velXAccelLow,
+////						(int)(robotData.state.vel_accel[0] * 1000.0));
+////	convertDebugSpeed(&debugData.velYAccelHigh, &debugData.velYAccelLow,
+////						(int)(robotData.state.vel_accel[1] * 1000.0));
+//
+//	convertDebugSpeed(&debugData.deltaTHigh, &debugData.deltaTLow,
+//						(int)(robotData.estimateTime));
+//}
+
+// updateDebugInfo para testes finais de velocidade
+//void updateDebugInfo()
+//{
+//	convertDebugSpeed(&debugData.posXHigh, &debugData.posXLow,
+//						(int)(robotData.state.pos[0]*1000.0));
+//
+//    convertDebugSpeed(&debugData.velXHigh, &debugData.velXLow,
+//    					(int)(robotData.state.vel[0] * 1000.0));
+//    convertDebugSpeed(&debugData.velYHigh, &debugData.velYLow,
+//    					(int)(robotData.state.vel[1] * 1000.0));
+//
+////	convertDebugSpeed(&debugData.velXAccelHigh, &debugData.velXAccelLow,
+////						(int)(robotData.state.vel_accel[0] * 1000.0));
+////	convertDebugSpeed(&debugData.velYAccelHigh, &debugData.velYAccelLow,
+////						(int)(robotData.state.vel_accel[1] * 1000.0));
+//
+//	convertDebugSpeed(&debugData.velXTheoHigh, &debugData.velXTheoLow,
+//						(int)(robotData.sensors.theoreticalVel.theoVel[0] * 1000.0));
+//	convertDebugSpeed(&debugData.velYTheoHigh, &debugData.velYTheoLow,
+//						(int)(robotData.sensors.theoreticalVel.theoVel[1] * 1000.0));
+//
+//	convertDebugSpeed(&debugData.velXEncHigh, &debugData.velXEncLow,
+//						(int)(robotData.sensors.encoder.localVel[0] * 1000.0));
+//	convertDebugSpeed(&debugData.velYEncHigh, &debugData.velYEncLow,
+//						(int)(robotData.sensors.encoder.localVel[1] * 1000.0));
+//}
+
 void convertDebugSpeed(uint8_t* _high, uint8_t* _low, int16_t _speed)
 {
     int8_t high, low;
@@ -1103,9 +1164,9 @@ void estimateState()
 	robotData.sensors.encoder.localVel[1] = encoderVel[1]*1.10;
 	robotData.sensors.encoder.localVel[2] = encoderVel[2]*1.10;
 
-//	FusionEKFUpdate_model_vision(&robotData.sensors, &robotData.state);
+	FusionEKFUpdate_model_vision(&robotData.sensors, &robotData.state);
 //	FusionEKFUpdate_model_encoder(&robotData.sensors, &robotData.state);
-	FusionEKFUpdate_model_imu(&robotData.sensors, &robotData.state);
+//	FusionEKFUpdate_model_imu(&robotData.sensors, &robotData.state);
 //	FusionEKFUpdate_imu_vision(&robotData.sensors, &robotData.state);
 //	FusionEKFUpdate_imu_encoder(&robotData.sensors, &robotData.state);
 //	FusionEKFUpdate_encoder_vision(&robotData.sensors, &robotData.state);
