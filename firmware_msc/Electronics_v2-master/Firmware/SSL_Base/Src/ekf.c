@@ -203,7 +203,7 @@ void KFPredict(KF* pKF, float dt)
 
 void KFUpdate(KF* pKF)
 {
-//	HAL_GPIO_WritePin(GREEN_LED_GPIO_Port, GREEN_LED_Pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(GREEN_LED_GPIO_Port, GREEN_LED_Pin, GPIO_PIN_SET);
 
 	// >>> H = jacobian(z,x)
 	(*pKF->pMeasJacobian)(&pKF->x, &pKF->C);

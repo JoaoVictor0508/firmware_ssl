@@ -293,9 +293,13 @@ void FusionEKFUpdate_imu_vision(const RobotSensors* pSensors, RobotState* pState
 
 	float dt = (new_sample_time-fusionEKF.lastTime)*1e-3f;
 
+	if(fusionEKF.lastTime == 0){
+		dt = 0;
+	}
+
 	stateNow.accGyr[0] = pSensors->acc.linAcc[0]; // m/s^2
 	stateNow.accGyr[1] = pSensors->acc.linAcc[1]; // m/s^2
-	stateNow.accGyr[2] = pSensors->gyr.rotVel[2] * M_PI / 180; // convert º/s to rad/s
+	stateNow.accGyr[2] = pSensors->gyr.rotVel[2];// * M_PI / 180; // convert º/s to rad/s
 
 	if(fusionEKF.first_vision_meas == true)
 	{
@@ -312,12 +316,7 @@ void FusionEKFUpdate_imu_vision(const RobotSensors* pSensors, RobotState* pState
 		memcpy(fusionEKF.kf.z.pData, pSensors->vision.pos, sizeof(float)*3); // transfer the data from the vision to the Z matrix
 		KFUpdate(&fusionEKF.kf); // update state
 
-		if(!fusionEKF.vision.online)
-		{
-			fusionEKF.vision.online = 1;
-		}
-
-		fusionEKF.predict_now = true;
+//		fusionEKF.predict_now = true;
 	}
 
 	if(arm_mat_is_nan_f32(&fusionEKF.kf.x))
@@ -336,21 +335,21 @@ void FusionEKFUpdate_imu_vision(const RobotSensors* pSensors, RobotState* pState
 	pState->vel[1] = fusionEKF.kf.x.pData[4]; // linear velocity Y
 	pState->vel[2] = stateNow.accGyr[2]; // angular velocity
 
-	for(int i = 0; i < fusionEKF.kf.Sigma.numRows; i++)
-	{
-		for(int j = 0; j < fusionEKF.kf.Sigma.numCols; j++)
-		{
-			pState->Sigma[i][j] = MAT_ELEMENT(fusionEKF.kf.Sigma, i, j);
-		}
-	}
-
-	for(int k = 0; k < fusionEKF.kf.K.numRows; k++)
-	{
-		for(int a = 0; a < fusionEKF.kf.K.numCols; a++)
-		{
-			pState->kalman_gain[k][a] = MAT_ELEMENT(fusionEKF.kf.K, k, a);
-		}
-	}
+//	for(int i = 0; i < fusionEKF.kf.Sigma.numRows; i++)
+//	{
+//		for(int j = 0; j < fusionEKF.kf.Sigma.numCols; j++)
+//		{
+//			pState->Sigma[i][j] = MAT_ELEMENT(fusionEKF.kf.Sigma, i, j);
+//		}
+//	}
+//
+//	for(int k = 0; k < fusionEKF.kf.K.numRows; k++)
+//	{
+//		for(int a = 0; a < fusionEKF.kf.K.numCols; a++)
+//		{
+//			pState->kalman_gain[k][a] = MAT_ELEMENT(fusionEKF.kf.K, k, a);
+//		}
+//	}
 }
 
 void FusionEKFUpdate_imu_encoder(const RobotSensors* pSensors, RobotState* pState){
@@ -472,6 +471,22 @@ void FusionEKFUpdate_encoder_vision(const RobotSensors* pSensors, RobotState* pS
 	pState->vel[0] = fusionEKF.kf.x.pData[3]; // linear velocity X
 	pState->vel[1] = fusionEKF.kf.x.pData[4]; // linear velocity Y
 	pState->vel[2] = stateNow.accGyr[2]; // angular velocity
+
+	for(int i = 0; i < fusionEKF.kf.Sigma.numRows; i++)
+	{
+		for(int j = 0; j < fusionEKF.kf.Sigma.numCols; j++)
+		{
+			pState->Sigma[i][j] = MAT_ELEMENT(fusionEKF.kf.Sigma, i, j);
+		}
+	}
+
+	for(int k = 0; k < fusionEKF.kf.K.numRows; k++)
+	{
+		for(int a = 0; a < fusionEKF.kf.K.numCols; a++)
+		{
+			pState->kalman_gain[k][a] = MAT_ELEMENT(fusionEKF.kf.K, k, a);
+		}
+	}
 }
 
 void FusionEKFUpdate_encoder_imu(const RobotSensors* pSensors, RobotState* pState){
@@ -632,15 +647,15 @@ static void initEKF()
 	KFInit(&fusionEKF.kf, 5, 3, 3, fusionEKF.ekfData);
 //	KFInit(&fusionEKF.kf, 5, 3, 5, fusionEKF.ekfData);
 
-//	arm_mat_scale_f32(&fusionEKF.kf.Sigma, 0.001f, &fusionEKF.kf.Sigma);
+	arm_mat_scale_f32(&fusionEKF.kf.Sigma, 0.001f, &fusionEKF.kf.Sigma);
 
-//	fusionEKF.kf.pState = &ekfStateFunc;
+	fusionEKF.kf.pState = &ekfStateFunc;
 //	fusionEKF.kf.pState = &ekfStateFunc_encoder;
-	fusionEKF.kf.pState = &ekfStateFunc_model;
+//	fusionEKF.kf.pState = &ekfStateFunc_model;
 
-//	fusionEKF.kf.pStateJacobian = &ekfStateJacobianFunc;
+	fusionEKF.kf.pStateJacobian = &ekfStateJacobianFunc;
 //	fusionEKF.kf.pStateJacobian = &ekfStateJacobianFunc_encoder;
-	fusionEKF.kf.pStateJacobian = &ekfStateJacobianFunc_model;
+//	fusionEKF.kf.pStateJacobian = &ekfStateJacobianFunc_model;
 
 	fusionEKF.kf.pMeas = &ekfMeasFuncPoseState;
 //	fusionEKF.kf.pMeas = &ekfMeasFuncFullState;
@@ -788,7 +803,7 @@ static void ekfStateJacobianFunc_model(const arm_matrix_instance_f32* pX, const 
 	float v_x = MAT_ELEMENT(*pX, 3, 0);
 	float v_y = MAT_ELEMENT(*pX, 4, 0);
 
-//	arm_mat_identity_f32(pF);
+	arm_mat_identity_f32(pF);
 
 	MAT_ELEMENT(*pF, 3, 3) = 0.0;
 	MAT_ELEMENT(*pF, 4, 4) = 0.0;
@@ -814,7 +829,10 @@ static void ekfStateJacobianFunc_encoder(const arm_matrix_instance_f32* pX, cons
 	float v_x = MAT_ELEMENT(*pX, 3, 0);
 	float v_y = MAT_ELEMENT(*pX, 4, 0);
 
-//	arm_mat_identity_f32(pF);
+	arm_mat_identity_f32(pF);
+
+	MAT_ELEMENT(*pF, 3, 3) = 0.0;
+	MAT_ELEMENT(*pF, 4, 4) = 0.0;
 
 	MAT_ELEMENT(*pF, 2, 2) = 1.0;
 

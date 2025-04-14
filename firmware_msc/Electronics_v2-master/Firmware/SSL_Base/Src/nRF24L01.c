@@ -232,6 +232,7 @@ void nRF24_ProcessPacket()
         receivedPacket.y.msb = radioData.rxBuffer[Y_MSB_P]; 
         receivedPacket.theta.lsb = radioData.rxBuffer[THETA_LSB_P];
         receivedPacket.theta.msb = radioData.rxBuffer[THETA_MSB_P];
+        receivedPacket.att_pose = radioData.rxBuffer[ATT_POSE];
     }
 
     uint8_t n = 0;

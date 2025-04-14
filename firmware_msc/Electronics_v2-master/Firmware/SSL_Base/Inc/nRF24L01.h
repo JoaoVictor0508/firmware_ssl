@@ -30,7 +30,7 @@
 #define TX_PACKET_SIZE 32
 
 #define PREAMBLE_SZ 6
-#define ROBOFEI_PACKET_SIZE PREAMBLE_SZ + 15 // Tamanho do pacote com o preamble
+#define ROBOFEI_PACKET_SIZE PREAMBLE_SZ + 16 // Tamanho do pacote com o preamble
 
 #define PACKET_START 'b'
 #define PACKET_END 'e'
@@ -307,6 +307,7 @@ typedef enum
     X_MSB_P = PREAMBLE_SZ + 12, // Posição da parte alta da posição X
     Y_LSB_P = PREAMBLE_SZ + 13, // Posição da parte baixa da posição Y
     Y_MSB_P = PREAMBLE_SZ + 14, // Posição da parte alta da posição Y
+	ATT_POSE = PREAMBLE_SZ + 15,
     THETA_LSB_P = PREAMBLE_SZ + 5, // Posição da parte baixa da posição Theta
     THETA_MSB_P = PREAMBLE_SZ + 6 // Posição da parte alta da posição Theta
 } RX_PACKET_PROTOCOL;
@@ -333,6 +334,8 @@ typedef struct
         };
         int16_t value;
     } x, y, theta;
+
+    int8_t att_pose;
 } RadioRXPacket_t;
 extern RadioRXPacket_t receivedPacket;
 
