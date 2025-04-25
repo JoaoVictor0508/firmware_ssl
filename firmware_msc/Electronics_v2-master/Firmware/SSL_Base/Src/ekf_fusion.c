@@ -327,6 +327,8 @@ void FusionEKFUpdate_imu_vision(const RobotSensors* pSensors, RobotState* pState
 
 	fusionEKF.lastTime = new_sample_time;
 
+	fusionEKF.vision.online = 1;
+
 	pState->pos[0] = fusionEKF.kf.x.pData[0]; // position X
 	pState->pos[1] = fusionEKF.kf.x.pData[1]; // position Y
 	pState->pos[2] = fusionEKF.kf.x.pData[2]; // angular position
@@ -385,6 +387,23 @@ void FusionEKFUpdate_imu_encoder(const RobotSensors* pSensors, RobotState* pStat
 		pState->vel_enc[1] = pSensors->encoder.localVel[1];
 		pState->vel_enc[2] = pSensors->encoder.localVel[2];
 	}
+
+//	if(pSensors->vision.noVision == true)
+//	{
+//		if(fusionEKF.vision.online == true)
+//		{
+//			fusionEKF.vision.online = false;
+//			pState->pos_enc[0] = pState->pos[0];
+//			pState->pos_enc[1] = pState->pos[1];
+//			pState->pos_enc[2] = pState->pos[2];
+//			pState->vel_enc[0] = pSensors->encoder.localVel[0];
+//			pState->vel_enc[1] = pSensors->encoder.localVel[1];
+//			pState->vel_enc[2] = pSensors->encoder.localVel[2];
+//		}
+//	}
+//	else{
+//		fusionEKF.vision.online = true;
+//	}
 
 	Vector2fTurnLocal2Global(pSensors->vision.pos[2], pSensors->encoder.localVel[0], pSensors->encoder.localVel[1], encVelGlobal, encVelGlobal+1);
 
@@ -515,6 +534,23 @@ void FusionEKFUpdate_encoder_imu(const RobotSensors* pSensors, RobotState* pStat
 		pState->vel_accel[2] = pSensors->encoder.localVel[2];
 	}
 
+	if(pSensors->vision.noVision == true)
+	{
+		if(fusionEKF.vision.online == true)
+		{
+			fusionEKF.vision.online = false;
+			pState->pos_accel[0] = pState->pos[0];
+			pState->pos_accel[1] = pState->pos[1];
+			pState->pos_accel[2] = pState->pos[2];
+			pState->vel_accel[0] = pSensors->encoder.localVel[0];
+			pState->vel_accel[1] = pSensors->encoder.localVel[1];
+			pState->vel_accel[2] = pSensors->encoder.localVel[2];
+		}
+	}
+	else{
+		fusionEKF.vision.online = true;
+	}
+
 	stateNow.vel[0] = pSensors->encoder.localVel[0]; // m/s
 	stateNow.vel[1] = pSensors->encoder.localVel[1]; // m/s
 	stateNow.vel[2] = pSensors->encoder.localVel[2]; // rad/s
@@ -637,15 +673,15 @@ static void loadNoiseCovariancesFromConfig()
 		MAT_ELEMENT(fusionEKF.kf.Ez, 0, 0) = fusionEKF.pConfig->visNoiseXY *fusionEKF.pConfig->visNoiseXY;
 		MAT_ELEMENT(fusionEKF.kf.Ez, 1, 1) = fusionEKF.pConfig->visNoiseXY *fusionEKF.pConfig->visNoiseXY;
 		MAT_ELEMENT(fusionEKF.kf.Ez, 2, 2) = fusionEKF.pConfig->visNoiseW  *fusionEKF.pConfig->visNoiseW;
-//		MAT_ELEMENT(fusionEKF.kf.Ez, 3, 3) = fusionEKF.pConfig->visNoiseVel*fusionEKF.pConfig->visNoiseVel;
-//		MAT_ELEMENT(fusionEKF.kf.Ez, 4, 4) = fusionEKF.pConfig->visNoiseVel*fusionEKF.pConfig->visNoiseVel;
+		MAT_ELEMENT(fusionEKF.kf.Ez, 3, 3) = fusionEKF.pConfig->visNoiseVel*fusionEKF.pConfig->visNoiseVel;
+		MAT_ELEMENT(fusionEKF.kf.Ez, 4, 4) = fusionEKF.pConfig->visNoiseVel*fusionEKF.pConfig->visNoiseVel;
 	}
 }
 
 static void initEKF()
 {
-	KFInit(&fusionEKF.kf, 5, 3, 3, fusionEKF.ekfData);
-//	KFInit(&fusionEKF.kf, 5, 3, 5, fusionEKF.ekfData);
+//	KFInit(&fusionEKF.kf, 5, 3, 3, fusionEKF.ekfData);
+	KFInit(&fusionEKF.kf, 5, 3, 5, fusionEKF.ekfData);
 
 	arm_mat_scale_f32(&fusionEKF.kf.Sigma, 0.001f, &fusionEKF.kf.Sigma);
 
@@ -657,11 +693,11 @@ static void initEKF()
 //	fusionEKF.kf.pStateJacobian = &ekfStateJacobianFunc_encoder;
 //	fusionEKF.kf.pStateJacobian = &ekfStateJacobianFunc_model;
 
-	fusionEKF.kf.pMeas = &ekfMeasFuncPoseState;
-//	fusionEKF.kf.pMeas = &ekfMeasFuncFullState;
+//	fusionEKF.kf.pMeas = &ekfMeasFuncPoseState;
+	fusionEKF.kf.pMeas = &ekfMeasFuncFullState;
 
-	fusionEKF.kf.pMeasJacobian = &ekfMeasJacobianFuncPoseState;
-//	fusionEKF.kf.pMeasJacobian = &ekfMeasJacobianFuncFullState;
+//	fusionEKF.kf.pMeasJacobian = &ekfMeasJacobianFuncPoseState;
+	fusionEKF.kf.pMeasJacobian = &ekfMeasJacobianFuncFullState;
 
 	fusionEKF.first_vision_meas = true;
 

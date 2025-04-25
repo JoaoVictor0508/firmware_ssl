@@ -76,6 +76,7 @@ typedef struct _RobotSensors
 		uint32_t time;		// local arrival time (systime)
 		uint32_t delay;		// t [us]
 		float pos[3];		// X, Y, theta [m]
+		bool noVision;
 //		uint32_t camId;
 //		uint32_t noVision;
 	} vision;
@@ -150,10 +151,14 @@ typedef struct RobotData_t
 
     RobotSensors sensors;
 
+    uint32_t lastVisionTime;
+
     float pos_imu[3];
     float vel_imu[3];
 
     RobotSpecs specs;
+
+    bool noVision;
 
     RobotMath math;
 
@@ -654,38 +659,6 @@ typedef struct RobotData_t
 //} DebugData_t;
 
 //debugData para testes finais de encoder e IMU
-//typedef union DebugData_t {
-//    struct
-//    {
-//        //      informação ---- [indice]
-//        uint8_t posXHigh;   		// [0]
-//        uint8_t posXLow;   			// [1]
-//        uint8_t posYHigh;  			// [2]
-//        uint8_t posYLow;   			// [3]
-//        uint8_t posThetaHigh; 		// [4]
-//        uint8_t posThetaLow;  		// [5]
-//        uint8_t posXVisionHigh;     // [6]
-//        uint8_t posXVisionLow;      // [7]
-//        uint8_t posYVisionHigh;     // [8]
-//        uint8_t posYVisionLow;      // [9]
-//		uint8_t posThetaVisionHigh;		// [10]
-//		uint8_t posThetaVisionLow;				// [11]
-//		uint8_t velXHigh; 			// [12]
-//		uint8_t velXLow;		 		// [13]
-//		uint8_t velYHigh;		 		// [14]
-//		uint8_t velYLow; 		// [15]
-//		uint8_t velThetaHigh;				// [16]
-//		uint8_t velThetaLow;				// [17]
-//		uint8_t velYEncHigh; 			// [18]
-//		uint8_t velYEncLow; 			// [19]
-//		uint8_t data20; 			// [20]
-//		uint8_t data21; 			// [21]
-//		uint8_t flagAttPose;				// [22]
-//    };
-//    uint8_t data[DEBUG_SIZE];
-//} DebugData_t;
-
-//DEBUG DA INTEGRAL DA IMU
 typedef union DebugData_t {
     struct
     {
@@ -696,26 +669,58 @@ typedef union DebugData_t {
         uint8_t posYLow;   			// [3]
         uint8_t posThetaHigh; 		// [4]
         uint8_t posThetaLow;  		// [5]
-        uint8_t velXIMUHigh;     	// [6]
-        uint8_t velXIMULow;      	// [7]
-        uint8_t velYIMUHigh;     // [8]
-        uint8_t velYIMULow;      // [9]
-		uint8_t velThetaIMUHigh;		// [10]
-		uint8_t velThetaIMULow;				// [11]
-		uint8_t velXEncHigh; 			// [12]
-		uint8_t velXEncLow;		 		// [13]
-		uint8_t velYEncHigh;		 		// [14]
-		uint8_t velYEncLow; 		// [15]
-		uint8_t velThetaEncHigh;				// [16]
-		uint8_t velThetaEncLow;				// [17]
-		uint8_t posYEKFHigh; 			// [18]
-		uint8_t posYEKFLow; 			// [19]
+        uint8_t posXVisionHigh;     // [6]
+        uint8_t posXVisionLow;      // [7]
+        uint8_t posYVisionHigh;     // [8]
+        uint8_t posYVisionLow;      // [9]
+		uint8_t posThetaVisionHigh;		// [10]
+		uint8_t posThetaVisionLow;				// [11]
+		uint8_t velXHigh; 			// [12]
+		uint8_t velXLow;		 		// [13]
+		uint8_t velYHigh;		 		// [14]
+		uint8_t velYLow; 		// [15]
+		uint8_t velThetaHigh;				// [16]
+		uint8_t velThetaLow;				// [17]
+		uint8_t velYEncHigh; 			// [18]
+		uint8_t velYEncLow; 			// [19]
 		uint8_t data20; 			// [20]
 		uint8_t data21; 			// [21]
 		uint8_t flagAttPose;				// [22]
     };
     uint8_t data[DEBUG_SIZE];
 } DebugData_t;
+
+//DEBUG DA INTEGRAL DA IMU
+//typedef union DebugData_t {
+//    struct
+//    {
+//        //      informação ---- [indice]
+//        uint8_t posXHigh;   		// [0]
+//        uint8_t posXLow;   			// [1]
+//        uint8_t posYHigh;  			// [2]
+//        uint8_t posYLow;   			// [3]
+//        uint8_t posThetaHigh; 		// [4]
+//        uint8_t posThetaLow;  		// [5]
+//        uint8_t velXIMUHigh;     	// [6]
+//        uint8_t velXIMULow;      	// [7]
+//        uint8_t velYIMUHigh;     // [8]
+//        uint8_t velYIMULow;      // [9]
+//		uint8_t velThetaIMUHigh;		// [10]
+//		uint8_t velThetaIMULow;				// [11]
+//		uint8_t velXEncHigh; 			// [12]
+//		uint8_t velXEncLow;		 		// [13]
+//		uint8_t velYEncHigh;		 		// [14]
+//		uint8_t velYEncLow; 		// [15]
+//		uint8_t velThetaEncHigh;				// [16]
+//		uint8_t velThetaEncLow;				// [17]
+//		uint8_t posYEKFHigh; 			// [18]
+//		uint8_t posYEKFLow; 			// [19]
+//		uint8_t data20; 			// [20]
+//		uint8_t data21; 			// [21]
+//		uint8_t flagAttPose;				// [22]
+//    };
+//    uint8_t data[DEBUG_SIZE];
+//} DebugData_t;
 
 static RobotData_t robotData = {.battery = 0,
                                 .mVbattery = 0,

@@ -106,14 +106,14 @@ LagElementPT1 lagGyro[1];
 //};
 
 //// ruido para IMU + encoder
-//static FusionEKFConfig configFusionKF = {
-//	.posNoiseXY = 0.008395691788266567f, 		// Incerteza da posição da IMU
-//	.posNoiseW = 0.020104334777182934f,		// Incerteza da orientação da IMU
-//	.velNoiseXY = 0.0016662096492746873f,		// Incerteza da velocidade da IMU
-//	.visNoiseXY = 0.0005f,		// Incerteza da posição do encoder
-//	.visNoiseW  = 0.007f,	// Incerteza da orientação do encoder
-//	.visNoiseVel = 0.0005f,		// Incerteza da velocidae do encoder
-//};
+static FusionEKFConfig configFusionKF = {
+	.posNoiseXY = 0.008395691788266567f, 		// Incerteza da posição da IMU
+	.posNoiseW = 0.020104334777182934f,		// Incerteza da orientação da IMU
+	.velNoiseXY = 0.05,//0.0016662096492746873f,		// Incerteza da velocidade da IMU
+	.visNoiseXY = 0.0005f,		// Incerteza da posição do encoder
+	.visNoiseW  = 0.007f,	// Incerteza da orientação do encoder
+	.visNoiseVel = 0.0005f,		// Incerteza da velocidae do encoder
+};
 
 // ruido para modelo + imu
 //static FusionEKFConfig configFusionKF = {
@@ -146,14 +146,14 @@ LagElementPT1 lagGyro[1];
 //};
 
 //ruido para imu + visao
-static FusionEKFConfig configFusionKF = {
-	.posNoiseXY = 0.008395691788266567f,		// Incerteza da posição da IMU
-	.posNoiseW = 0.020104334777182934f,		// Incerteza da orientação da IMU
-	.velNoiseXY = 0.05,//0.0016662096492746873f,		// Incerteza da velocidade da IMU
-	.visNoiseXY = 0.00116f,
-	.visNoiseW  = 0.009866f,
-	.visNoiseVel= 0.0098f,
-};
+//static FusionEKFConfig configFusionKF = {
+//	.posNoiseXY = 0.008395691788266567f,		// Incerteza da posição da IMU
+//	.posNoiseW = 0.020104334777182934f,		// Incerteza da orientação da IMU
+//	.velNoiseXY = 0.05,//0.0016662096492746873f,		// Incerteza da velocidade da IMU
+//	.visNoiseXY = 0.00116f,
+//	.visNoiseW  = 0.009866f,
+//	.visNoiseVel= 0.0098f,
+//};
 
 extern void initialise_monitor_handles(void);
 
@@ -568,6 +568,8 @@ void processRadio()
 				robotData.pose.theta = receivedPacket.theta.value;
 
 				robotData.sensors.vision.updated = 1;
+
+				robotData.lastVisionTime = HAL_GetTick();
         	}
         	else
         	{
@@ -999,78 +1001,78 @@ void readBattery()
 //						(int)(robotData.sensors.encoder.localVel[1] * 1000.0));
 //}
 
+// UpdateDebugInfo para testes finais do encoder e IMU
+
+void updateDebugInfo()
+{
+	convertDebugSpeed(&debugData.posXHigh, &debugData.posXLow,
+						(int)(robotData.state.pos[0]*1000.0));
+	convertDebugSpeed(&debugData.posYHigh, &debugData.posYLow,
+						(int)(robotData.state.pos[1]*1000.0));
+	convertDebugSpeed(&debugData.posThetaHigh, &debugData.posThetaLow,
+						(int)(robotData.state.pos[2] * 180.0 / M_PI));
+
+//    convertDebugSpeed(&debugData.posXVisionHigh, &debugData.posXVisionLow,
+//    					(int)(receivedPacket.x.value));
+//    convertDebugSpeed(&debugData.posYVisionHigh, &debugData.posYVisionLow,
+//						(int)(receivedPacket.y.value));
+//    convertDebugSpeed(&debugData.posThetaVisionHigh, &debugData.posThetaVisionLow,
+//						(int)(receivedPacket.theta.value));
+
+    convertDebugSpeed(&debugData.posXVisionHigh, &debugData.posXVisionLow,
+    					(int)(robotData.sensors.acc.linAcc[0] * 1000.0));
+    convertDebugSpeed(&debugData.posYVisionHigh, &debugData.posYVisionLow,
+						(int)(robotData.sensors.acc.linAcc[1] * 1000.0));
+    convertDebugSpeed(&debugData.posThetaVisionHigh, &debugData.posThetaVisionLow,
+						(int)(robotData.sensors.encoder.localVel[0] * 1000.0));
+
+    convertDebugSpeed(&debugData.velXHigh, &debugData.velXLow,
+						(int)(robotData.vel_imu[0] * 1000.0));
+    convertDebugSpeed(&debugData.velYHigh, &debugData.velYLow,
+						(int)(robotData.vel_imu[1] * 1000.0));
+    convertDebugSpeed(&debugData.velThetaHigh, &debugData.velThetaLow,
+						(int)(robotData.sensors.gyr.rotVel[2] * 180.0 / M_PI));
+
+    convertDebugSpeed(&debugData.velYEncHigh, &debugData.velYEncLow,
+						(int)(robotData.sensors.encoder.localVel[1] * 1000.0));
+
+    debugData.flagAttPose = receivedPacket.att_pose;
+}
+
 //// UpdateDebugInfo para testes finais do encoder e IMU
 //
 //void updateDebugInfo()
 //{
 //	convertDebugSpeed(&debugData.posXHigh, &debugData.posXLow,
 //						(int)(robotData.state.pos[0]*1000.0));
+////	convertDebugSpeed(&debugData.posYHigh, &debugData.posYLow,
+////						(int)(robotData.state.pos[1]*1000.0));
+////	convertDebugSpeed(&debugData.posThetaHigh, &debugData.posThetaLow,
+////						(int)(robotData.state.pos[2] * 180.0 / M_PI));
+//
 //	convertDebugSpeed(&debugData.posYHigh, &debugData.posYLow,
-//						(int)(robotData.state.pos[1]*1000.0));
+//						(int)(robotData.sensors.acc.linAcc[0] * 1000.0));
 //	convertDebugSpeed(&debugData.posThetaHigh, &debugData.posThetaLow,
-//						(int)(robotData.state.pos[2] * 180.0 / M_PI));
-//
-////    convertDebugSpeed(&debugData.posXVisionHigh, &debugData.posXVisionLow,
-////    					(int)(receivedPacket.x.value));
-////    convertDebugSpeed(&debugData.posYVisionHigh, &debugData.posYVisionLow,
-////						(int)(receivedPacket.y.value));
-////    convertDebugSpeed(&debugData.posThetaVisionHigh, &debugData.posThetaVisionLow,
-////						(int)(receivedPacket.theta.value));
-//
-//    convertDebugSpeed(&debugData.posXVisionHigh, &debugData.posXVisionLow,
-//    					(int)(robotData.sensors.acc.linAcc[0] * 1000.0));
-//    convertDebugSpeed(&debugData.posYVisionHigh, &debugData.posYVisionLow,
 //						(int)(robotData.sensors.acc.linAcc[1] * 1000.0));
-//    convertDebugSpeed(&debugData.posThetaVisionHigh, &debugData.posThetaVisionLow,
-//						(int)(robotData.sensors.encoder.localVel[0] * 1000.0));
 //
-//    convertDebugSpeed(&debugData.velXHigh, &debugData.velXLow,
-//						(int)(robotData.vel_imu[0] * 1000.0));
-//    convertDebugSpeed(&debugData.velYHigh, &debugData.velYLow,
+//    convertDebugSpeed(&debugData.velXIMUHigh, &debugData.velXIMULow,
+//    					(int)(robotData.vel_imu[0] * 1000.0));
+//    convertDebugSpeed(&debugData.velYIMUHigh, &debugData.velYIMULow,
 //						(int)(robotData.vel_imu[1] * 1000.0));
-//    convertDebugSpeed(&debugData.velThetaHigh, &debugData.velThetaLow,
-//						(int)(robotData.sensors.gyr.rotVel[2] * 180.0 / M_PI));
+//    convertDebugSpeed(&debugData.velThetaIMUHigh, &debugData.velThetaIMULow,
+//						(int)(robotData.state.vel[0] * 1000.0));
 //
+//    convertDebugSpeed(&debugData.velXEncHigh, &debugData.velXEncLow,
+//						(int)(robotData.sensors.encoder.localVel[0] * 1000.0));
 //    convertDebugSpeed(&debugData.velYEncHigh, &debugData.velYEncLow,
 //						(int)(robotData.sensors.encoder.localVel[1] * 1000.0));
+//    convertDebugSpeed(&debugData.velThetaEncHigh, &debugData.velThetaEncLow,
+//						(int)(robotData.state.vel[1] * 1000.0));
+//    convertDebugSpeed(&debugData.posYEKFHigh, &debugData.posYEKFLow,
+//   						(int)(robotData.state.pos[1] * 1000.0));
 //
 //    debugData.flagAttPose = receivedPacket.att_pose;
 //}
-
-//// UpdateDebugInfo para testes finais do encoder e IMU
-//
-void updateDebugInfo()
-{
-	convertDebugSpeed(&debugData.posXHigh, &debugData.posXLow,
-						(int)(robotData.state.pos[0]*1000.0));
-//	convertDebugSpeed(&debugData.posYHigh, &debugData.posYLow,
-//						(int)(robotData.state.pos[1]*1000.0));
-//	convertDebugSpeed(&debugData.posThetaHigh, &debugData.posThetaLow,
-//						(int)(robotData.state.pos[2] * 180.0 / M_PI));
-
-	convertDebugSpeed(&debugData.posYHigh, &debugData.posYLow,
-						(int)(robotData.sensors.acc.linAcc[0] * 1000.0));
-	convertDebugSpeed(&debugData.posThetaHigh, &debugData.posThetaLow,
-						(int)(robotData.sensors.acc.linAcc[1] * 1000.0));
-
-    convertDebugSpeed(&debugData.velXIMUHigh, &debugData.velXIMULow,
-    					(int)(robotData.vel_imu[0] * 1000.0));
-    convertDebugSpeed(&debugData.velYIMUHigh, &debugData.velYIMULow,
-						(int)(robotData.vel_imu[1] * 1000.0));
-    convertDebugSpeed(&debugData.velThetaIMUHigh, &debugData.velThetaIMULow,
-						(int)(robotData.state.vel[0] * 1000.0));
-
-    convertDebugSpeed(&debugData.velXEncHigh, &debugData.velXEncLow,
-						(int)(robotData.sensors.encoder.localVel[0] * 1000.0));
-    convertDebugSpeed(&debugData.velYEncHigh, &debugData.velYEncLow,
-						(int)(robotData.sensors.encoder.localVel[1] * 1000.0));
-    convertDebugSpeed(&debugData.velThetaEncHigh, &debugData.velThetaEncLow,
-						(int)(robotData.state.vel[1] * 1000.0));
-    convertDebugSpeed(&debugData.posYEKFHigh, &debugData.posYEKFLow,
-   						(int)(robotData.state.pos[1] * 1000.0));
-
-    debugData.flagAttPose = receivedPacket.att_pose;
-}
 
 void convertDebugSpeed(uint8_t* _high, uint8_t* _low, int16_t _speed)
 {
@@ -1290,8 +1292,19 @@ void estimateState()
 //	FusionEKFUpdate_model_vision(&robotData.sensors, &robotData.state);
 //	FusionEKFUpdate_model_encoder(&robotData.sensors, &robotData.state);
 //	FusionEKFUpdate_model_imu(&robotData.sensors, &robotData.state);
-	FusionEKFUpdate_imu_vision(&robotData.sensors, &robotData.state);
-//	FusionEKFUpdate_imu_encoder(&robotData.sensors, &robotData.state);
+//	if((HAL_GetTick() - robotData.lastVisionTime) < 1000)
+//	{
+//		robotData.sensors.vision.noVision = false;
+//		FusionEKFUpdate_imu_vision(&robotData.sensors, &robotData.state);
+//	}
+//	else
+//	{
+//		robotData.sensors.vision.noVision = true;
+////		FusionEKFUpdate_encoder_imu(&robotData.sensors, &robotData.state);
+//		FusionEKFUpdate_imu_encoder(&robotData.sensors, &robotData.state);
+//	}
+//	FusionEKFUpdate_imu_vision(&robotData.sensors, &robotData.state);
+	FusionEKFUpdate_imu_encoder(&robotData.sensors, &robotData.state);
 //	FusionEKFUpdate_encoder_vision(&robotData.sensors, &robotData.state);
 //	FusionEKFUpdate_encoder_imu(&robotData.sensors, &robotData.state);
 
